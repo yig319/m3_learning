@@ -312,7 +312,9 @@ class Viz:
             axes[i].plot(xs[i], ys[i], marker='.', markersize=2, color=color)
             Viz.set_labels(axes[i], xlabel=xlabel, ylabel=ylabel, ylim=ylim, legend=legend)
         if not isinstance(labels, type(None)):
-            labelfigs(axes[i], 1, string_add=labels[i], loc='bm', size=6)
+            # labelfigs(axes[i], 1, string_add=labels[i], loc='bm', size=6)
+            labelfigs(axes[i], 1, loc='cb', size=6)
+
         # plt.show()
         
     @staticmethod

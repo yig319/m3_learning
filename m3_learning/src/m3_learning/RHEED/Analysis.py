@@ -36,7 +36,7 @@ def detect_peaks(curve_x, curve_y, camera_freq, laser_freq, step_size, prominenc
     for i in range(1, len(x_peaks)):
         xs.append(list(curve_x[5+x_peaks[i-1]:x_peaks[i]]))
         ys.append(list(curve_y[5+x_peaks[i-1]:x_peaks[i]]))
-    return x_peaks/500, xs, ys
+    return x_peaks/camera_freq, xs, ys
 
 def remove_outlier(x, y, ub):
 
