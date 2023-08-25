@@ -52,7 +52,7 @@ def fit_curves(xs, ys, x_peaks, sample_x):
 
 def analyze_rheed_data(data, camera_freq, laser_freq, detect_param={'step_size':3, 'prominence':10}, viz_curves=False, viz_fittings=False, viz_ab=False, n_std=3):
     if isinstance(data, str):
-        data = np.loadtxt(file)
+        data = np.loadtxt(data)
     sample_x, sample_y = data[:,0], data[:,1]
     
     step_size = detect_param['step_size']
