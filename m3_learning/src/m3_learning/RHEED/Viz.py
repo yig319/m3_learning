@@ -352,7 +352,7 @@ class Viz:
 
 
     @staticmethod
-    def plot_fit_details(x, y1, y2, y3, index_list, save_name=None, printing=None):
+    def plot_fit_details(x, y1, y2, y3, index_list, figsize=None, save_name=None, printing=None):
         """
         Plot the fit details.
 
@@ -379,7 +379,10 @@ class Viz:
                 else:
                     n_plot = 10*mod
 
-                fig, axes = layout_fig(n_plot, mod=mod, figsize=(6, 1*(n_plot//mod+1)))
+                if figsize == None:
+                    figsize=(6, 1*(n_plot//mod+1))
+                    
+                fig, axes = layout_fig(n_plot, mod=mod, figsize=figsize)
                 axes = axes.flatten()[:n_plot]
                 for i in range(start_plot, start_plot+n_plot):
                     if np == n_page-1 and i == start_plot+n_plot-1:                    

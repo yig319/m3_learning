@@ -259,10 +259,7 @@ class RHEED_parameter_dataset():
                     for k in h5[g][s].keys():
                         try:
                             print(f"----{k}:, Size of data: {h5[g][s][k].shape}")
-                            print(f"----{k}:, Size of data: {h5[g][s][k].shape}")
                         except:
-                            print(f"----metric: {k}")
-
                             print(f"----metric: {k}")
 
 
