@@ -116,6 +116,7 @@ def plot_activation_energy(temp_list, tau_list):
     axes[0].scatter(T, tau_mean, color='k', s=10)
     axes[0].set_xlabel('T')
     axes[0].set_xlabel('tau')
+    axes[0].set_ylim(0,0.6)
 
     x = 1/(T)
     y = -np.log(tau_mean)
@@ -125,5 +126,5 @@ def plot_activation_energy(temp_list, tau_list):
     axes[1].plot(x, y, 'yo', x, m*x+b, '--k')
     axes[1].set_xlabel('1/T (1/K))')
     axes[1].set_ylabel(r'-ln($\tau$)')
-    axes[1].set_title('Activation Energy: ' + str(round(m*8.617e-5, 2)) + ' eV')
+    axes[1].set_title('Activation Energy: ' + str(round(m*-8.617e-5, 2)) + ' eV')
     plt.show()

@@ -5,7 +5,7 @@ from m3_learning.viz.layout import imagemap, layout_fig, labelfigs
 from m3_learning.RHEED.Viz import Viz
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.ticker as ticker
-
+import plotly.express as px
 
 def compress_gaussian_params_H5(file_in, str=None, compression='gzip', compression_opts=9):
     """
@@ -105,13 +105,18 @@ class RHEED_spot_Dataset:
                 except:
                     print(f"Growth: {g}")
 
+    def growth_dataset_length(self, growth):
+        with h5py.File(self.path, mode='r') as h5:
+            return len(h5[growth])
+
+                    
     def growth_dataset(self, growth, index = None):
         """
         Retrieves the RHEED spot data for a specific growth.
 
         Args:
             growth (str): The name of the growth.
-            index (int, optional): The index of the data array to retrieve. Defaults to None.
+            index (int or list, optional): The index of the data array to retrieve. Defaults to None.
 
         Returns:
             numpy.ndarray: The RHEED spot data as a numpy array.
@@ -124,12 +129,16 @@ class RHEED_spot_Dataset:
             if index is None:
                 return np.array(h5[growth])
             else:
-                if index<0 or index>h5[growth].shape[0]:
+                if isinstance(index, int):
+                    i_max = index
+                else:
+                    i_max = np.max(index)
+                if i_max<0 or i_max>h5[growth].shape[0]:
                     raise ValueError('Index out of range')
                 else:
                     return np.array(h5[growth][index])
                                 
-    def viz_RHEED_spot(self, growth, index, figsize=(2, 2), clim=None, filename = None, printing=None, **kwargs):
+    def viz_RHEED_spot(self, growth, index, figsize=(2, 2), viz_mode='print', clim=None, filename = None, printing=None, **kwargs):
         """
         Visualizes a specific RHEED spot.
 
@@ -137,36 +146,44 @@ class RHEED_spot_Dataset:
             growth (str): The name of the growth.
             index (int): The index of the data array to visualize.
             figsize (tuple, optional): The size of the figure. Defaults to (2, 2).
+            viz_mode (str): The visualization mode for spot image. Defaults to 'print', options: 'print', 'iteractive'.
             clim (tuple, optional): The color limit for the plot. Defaults to None.
             filename (str or bool, optional): The filename to save the plot. If True, a default filename will be used. Defaults to None.
             printing: A printing object used for saving the figure. Defaults to None.
             **kwargs: Additional keyword arguments to pass to the printing object.
 
         """
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        print(f'\033[1mFig.\033[0m a: RHEED spot image for {growth} at index {index}.')
+
         # fig, axes = layout_fig(1, figsize=figsize)
 
         data = self.growth_dataset(growth, index)
         # imagemap(axes[0], data, clim=clim, divider_=True)
         # customized version of imagemap
-        im = ax.imshow(data)
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="10%", pad=0.05)
-        cbar = fig.colorbar(im, ticks=[data.min(), data.max(), np.mean([data.min(), data.max()])], cax=cax, format="%.2e")
-        ax.set_yticklabels("")
-        ax.set_xticklabels("")
-        ax.set_yticks([])
-        ax.set_xticks([])
-        labelfigs(ax, 0)
-        if filename is True: 
-            filename = f"RHEED_{self.sample_name}_{growth}_{index}"
+        
+        if viz_mode=='iteractive':
+            plt.figure(figsize=figsize)
+            im = px.imshow(data)
+            im.show()
+        elif viz_mode=='print':
+            fig, ax = plt.subplots(1, 1, figsize=figsize)
+            im = ax.imshow(data)
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes("right", size="10%", pad=0.05)
+            cbar = fig.colorbar(im, ticks=[data.min(), data.max(), np.mean([data.min(), data.max()])], cax=cax, format="%.2e")
+            ax.set_yticklabels("")
+            ax.set_xticklabels("")
+            ax.set_yticks([])
+            ax.set_xticks([])
+            labelfigs(ax, 0)
+            if filename is True: 
+                filename = f"RHEED_{self.sample_name}_{growth}_{index}"
 
-        # prints the figure
-        if printing is not None and filename is not None:
-            printing.savefig(fig, filename, **kwargs)
+            # prints the figure
+            if printing is not None and filename is not None:
+                printing.savefig(fig, filename, **kwargs)
 
-        print(f'\033[1mFig.\033[0m a: RHEED spot image for {growth} at index {index}.')
-        plt.show()
+            plt.show()
 
     @property
     def sample_name(self):
@@ -363,7 +380,7 @@ class RHEED_parameter_dataset():
         sample_list = [img, img_rec, img_rec-img]
 
         clim = (img.min(), img.max())
-        fig, axes = layout_fig(3, 3, figsize=(1.25*3, 1.25*1))
+        fig, axes = layout_fig(3, 3, figsize=figsize)
         for i, ax in enumerate(axes):
             if ax == axes[-1]:
                 imagemap(ax, sample_list[i], divider_=False, clim=clim, colorbars=True, **kwargs)
@@ -385,7 +402,7 @@ class RHEED_parameter_dataset():
         print(f'height={height:.2f}, x={x:.2f}, y={y:.2f}, width_x={width_x:.2f}, width_y_max={width_y:.2f}')
         
 
-    def viz_RHEED_parameter_trend(self, growth_list, spot, metric_list=None, head_tail=(100, 100), interval=0, filename = None, printing=None, **kwargs):
+    def viz_RHEED_parameter_trend(self, growth_list, spot, metric_list=None, head_tail=(100, 100), interval=0, figsize=None, filename = None, printing=None, **kwargs):
         """
         Visualizes the parameter trends for multiple growths, spot, and metrics.
 
@@ -402,10 +419,14 @@ class RHEED_parameter_dataset():
             metric_list = ['img_sum', 'img_rec_sum', 'x', 'y', 'width_x', 'width_y']
         
         if len(metric_list) == 1:
-            fig, ax = plt.subplots(len(metric_list), 1, figsize = (6, 2))
+            if figsize == None:
+                figsize=(6,2)
+            fig, ax = plt.subplots(len(metric_list), 1, figsize = figsize)
             axes = [ax]
         else:
-            fig, axes = plt.subplots(len(metric_list), 1, figsize = (6, 1.5*len(metric_list)))
+            if figsize == None:
+                figsize = (6, 1.5*len(metric_list))
+            fig, axes = plt.subplots(len(metric_list), 1, figsize = figsize)
         for i, (ax, metric) in enumerate(zip(axes, metric_list)):
             x_curve, y_curve = self.load_multiple_curves(growth_list, spot=spot, metric=metric, head_tail=head_tail, interval=interval) #**kwargs)
             ax.scatter(x_curve, y_curve, color='k', s=1)
