@@ -50,7 +50,7 @@ def fit_curves(xs, ys, x_peaks, sample_x):
     return parameters_all, x_list_all, [xs_all, ys_all, ys_fit_all, ys_nor_all, ys_nor_fit_all, ys_nor_fit_all_failed, labels_all, losses_all]
 
 
-def analyze_rheed_data(data, camera_freq, laser_freq, detect_param={'step_size':3, 'prominence':10}, viz_curves=False, viz_fittings=False, viz_ab=False, n_std=3):
+def analyze_rheed_data(data, camera_freq, laser_freq, detect_param={'step_size':3, 'prominence':10}, viz_curves=False, viz_fittings=False, viz_ab=False, n_std=3, trim_first=0):
     if isinstance(data, str):
         data = np.loadtxt(data)
     sample_x, sample_y = data[:,0], data[:,1]
@@ -62,7 +62,14 @@ def analyze_rheed_data(data, camera_freq, laser_freq, detect_param={'step_size':
     # plt.show()
     
     x_peaks, xs, ys = detect_peaks(sample_x, sample_y, camera_freq=camera_freq, laser_freq=laser_freq, step_size=step_size, prominence=prominence)
-
+    
+    if trim_first != 0:
+        xs_trimed, ys_trimed = [], []
+        for x, y in zip(xs, ys):
+            ys_trimed.append(y[trim_first:])
+            xs_trimed.append(np.linspace(x[0], x[-1], len(y[trim_first:])))
+        xs, ys = xs_trimed, ys_trimed
+    
     if viz_curves:
         xs_sample, ys_sample = xs[::1], ys[::1]
         fig, axes = layout_fig(len(ys_sample), mod=6, figsize=(12,2*len(ys_sample)//6+1), layout='compressed')
@@ -73,32 +80,32 @@ def analyze_rheed_data(data, camera_freq, laser_freq, detect_param={'step_size':
     
     if viz_fittings:
         Viz.plot_fit_details(xs_all, ys_nor_all, ys_nor_fit_all, ys_nor_fit_failed_all, index_list=range(len(xs_all)), figsize=(12,0.3*len(x_peaks)//6+1))
-
-    if viz_ab:
-        fig, axes = layout_fig(4, 1, figsize=(12, 3*4))
-        Viz.plot_curve(axes[0], sample_x, sample_y, plot_type='lineplot', xlabel='Time (s)', ylabel='Intensity (a.u.)', yaxis_style='sci')
-        Viz.plot_curve(axes[1], x_list_all, parameters_all[:,0], plot_type='lineplot', xlabel='Time (s)', ylabel='Fitted a (a.u.)')
-        Viz.plot_curve(axes[2], x_list_all, parameters_all[:,1], plot_type='lineplot', xlabel='Time (s)', ylabel='Fitted b (a.u.)')
-        Viz.plot_curve(axes[3], x_list_all, parameters_all[:,2], plot_type='lineplot', xlabel='Time (s)', ylabel='Characteristic Time (s)')
-        plt.show()
-
-    fig, ax1 = plt.subplots(1, 1, figsize=(8, 2.5), layout='compressed')
-    ax1.scatter(sample_x, sample_y, color='k', s=1)
-    Viz.set_labels(ax1, xlabel='Time (s)', ylabel='Intensity (a.u.)', ticks_both_sides=False)
-
+        
     # n_std = 3
-    tau = parameters_all[:,2]
+    tau = parameters_all[:,2]/laser_freq
     x_clean = x_list_all[np.where(tau < np.mean(tau) + n_std*np.std(tau))[0]]
     tau = tau[np.where(tau < np.mean(tau) + n_std*np.std(tau))[0]]
 
     x_clean = x_clean[np.where(tau > np.mean(tau) - n_std*np.std(tau))[0]]
     tau = tau[np.where(tau > np.mean(tau) - n_std*np.std(tau))[0]]
     # print('mean of tau:', np.mean(tau))
+    
+    if viz_ab:
+        fig, axes = layout_fig(4, 1, figsize=(12, 3*4))
+        Viz.plot_curve(axes[0], sample_x, sample_y, plot_type='lineplot', xlabel='Time (s)', ylabel='Intensity (a.u.)', yaxis_style='sci')
+        Viz.plot_curve(axes[1], x_list_all, parameters_all[:,0], plot_type='lineplot', xlabel='Time (s)', ylabel='Fitted a (a.u.)')
+        Viz.plot_curve(axes[2], x_list_all, parameters_all[:,1], plot_type='lineplot', xlabel='Time (s)', ylabel='Fitted b (a.u.)')
+        Viz.plot_curve(axes[3], x_clean, tau, plot_type='lineplot', xlabel='Time (s)', ylabel='Characteristic Time (s)')
+        plt.show()
+
+    fig, ax1 = plt.subplots(1, 1, figsize=(8, 2.5), layout='compressed')
+    ax1.scatter(sample_x, sample_y, color='k', s=1)
+    Viz.set_labels(ax1, xlabel='Time (s)', ylabel='Intensity (a.u.)', ticks_both_sides=False)
 
     ax2 = ax1.twinx()
-    ax2.scatter(x_list_all, parameters_all[:,2], color=seq_colors[0], s=3)
+    ax2.scatter(x_clean, tau, color=seq_colors[0], s=3)
     ax2.plot(x_clean,  tau, color='#bc5090', markersize=3)
-    Viz.set_labels(ax2, ylabel='Characteristic Time (s)', yaxis_style='lineplot', ylim=(-0.05, 0.8), ticks_both_sides=False)
+    Viz.set_labels(ax2, ylabel='Characteristic Time (s)', yaxis_style='lineplot', ticks_both_sides=False)
     ax2.tick_params(axis="y", color='k', labelcolor=seq_colors[0])
     ax2.set_ylabel('Characteristic Time (s)', color=seq_colors[0])
     plt.title('mean of tau: '+str(np.mean(tau)))
