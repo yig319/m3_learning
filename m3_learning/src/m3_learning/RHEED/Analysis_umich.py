@@ -6,6 +6,15 @@ from m3_learning.RHEED.Viz import Viz
 from m3_learning.RHEED.Analysis import detect_peaks, process_rheed_data , fit_exp_function
 seq_colors = ['#00429d','#2e59a8','#4771b2','#5d8abd','#73a2c6','#8abccf','#a5d5d8','#c5eddf','#ffffe0']
 
+def select_range(data, start, end):
+    x = data[:,0]
+    y = data[:,1]
+    x_selected = x[(x>start) & (x<end)]
+    y_selected = y[(x>start) & (x<end)]
+    data = np.stack([x_selected, y_selected], 1)
+    return data
+
+
 def fit_curves(xs, ys, x_peaks, sample_x):
     fit_settings = {'savgol_window_order': (15, 3), 'pca_component': 10, 'I_diff': 15000, 
                 'unify':False, 'bounds':[0.001, 1], 'p_init':[0.1, 0.4, 0.1]}
@@ -114,6 +123,8 @@ def analyze_txt_rheed(file, camera_freq, laser_freq, detect_param={'step_size':3
     data = np.loadtxt(file)
     sample_x, sample_y = data[:,0], data[:,1]
     
+
+
     # plt.plot(sample_x, sample_y)
     # plt.show()
     
@@ -143,7 +154,7 @@ def analyze_txt_rheed(file, camera_freq, laser_freq, detect_param={'step_size':3
     Viz.set_labels(ax1, xlabel='Time (s)', ylabel='Intensity (a.u.)', ticks_both_sides=False)
 
     # n_std = 3
-    tau = parameters_all[:,2]
+    tau = parameters_all[:,2]/laser_freq
     x_clean = x_list_all[np.where(tau < np.mean(tau) + n_std*np.std(tau))[0]]
     tau = tau[np.where(tau < np.mean(tau) + n_std*np.std(tau))[0]]
 
@@ -154,7 +165,7 @@ def analyze_txt_rheed(file, camera_freq, laser_freq, detect_param={'step_size':3
     ax2 = ax1.twinx()
     ax2.scatter(x_list_all, parameters_all[:,2], color=seq_colors[0], s=3)
     ax2.plot(x_clean,  tau, color='#bc5090', markersize=3)
-    Viz.set_labels(ax2, ylabel='Characteristic Time (s)', yaxis_style='lineplot', ylim=(-0.05, 0.8), ticks_both_sides=False)
+    Viz.set_labels(ax2, ylabel='Characteristic Time (s)', yaxis_style='lineplot', ticks_both_sides=False)
     ax2.tick_params(axis="y", color='k', labelcolor=seq_colors[0])
     ax2.set_ylabel('Characteristic Time (s)', color=seq_colors[0])
     plt.title('mean of tau: '+str(np.mean(tau)))
@@ -162,19 +173,19 @@ def analyze_txt_rheed(file, camera_freq, laser_freq, detect_param={'step_size':3
     return parameters_all, x_list_all, info, tau
 
 
-def plot_activation_energy(temp_list, tau_list):
+def plot_activation_energy(temp_list, tau_list, save_path=None):
     tau_mean_list = [np.mean(t_list) for t_list in tau_list]
 
-    fig, axes = plt.subplots(1, 2, figsize=(10,4))
+    fig, axes = plt.subplots(1, 2, figsize=(8,2.5))
 
-    T = np.array(temp_list) + 273
     tau_mean = np.array(tau_mean_list)
 
-    axes[0].scatter(T, tau_mean, color='k', s=10)
-    axes[0].set_xlabel('T')
-    axes[0].set_xlabel('tau')
-    axes[0].set_ylim(0,0.6)
+    axes[0].scatter(temp_list, tau_mean, color='k', s=10)
+    axes[0].set_xlabel('T (C)')
+    axes[0].set_ylabel('tau (s)')
+    # axes[0].set_ylim(0,0.2)
 
+    T = np.array(temp_list) + 273
     x = 1/(T)
     y = -np.log(tau_mean)
     m, b = np.polyfit(x, y, 1)
@@ -183,5 +194,13 @@ def plot_activation_energy(temp_list, tau_list):
     axes[1].plot(x, y, 'yo', x, m*x+b, '--k')
     axes[1].set_xlabel('1/T (1/K))')
     axes[1].set_ylabel(r'-ln($\tau$)')
-    axes[1].set_title('Activation Energy: ' + str(round(m*-8.617e-5, 2)) + ' eV')
+    # axes[1].set_title('Ea=' + str(round(m*-8.617e-5, 2)) + ' eV')
+    # axes[1].set_ylim(1.8,2.5)
+
+    text = f'Ea={round(m*-8.617e-5, 2)}eV'
+    bbox_props = dict(boxstyle="round,pad=0.3", edgecolor="white", facecolor="white")
+    axes[1].text(0.25, 0.1, text, transform=axes[1].transAxes, fontsize=10, verticalalignment="center", horizontalalignment="center", bbox=bbox_props)
+
+    if save_path is not None:
+        plt.savefig(save_path, dpi=300)
     plt.show()
