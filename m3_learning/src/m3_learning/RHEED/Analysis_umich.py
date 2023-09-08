@@ -9,6 +9,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import butter, filtfilt
 
+import csv
+def read_txt_to_numpy(filename):
+
+    # Load data using numpy.loadtxt
+    data = np.loadtxt(filename, dtype=float, skiprows=1, comments=None)
+
+    # Extract header from the first row
+    with open(filename, 'r') as file:
+        header = file.readline().strip().split()
+    return header, data
+
+
 def denoise_fft(data, cutoff_freq, denoise_order, sample_frequency, viz=False):
 
     sample_x, sample_y = data[:,0], data[:,1]
