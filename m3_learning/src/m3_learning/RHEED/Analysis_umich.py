@@ -9,7 +9,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import butter, filtfilt
 
-def denoise_fft(sample_x, sample_y, cutoff_freq, denoise_order, sample_frequency):
+def denoise_fft(data, cutoff_freq, denoise_order, sample_frequency, viz=False):
+
+    sample_x, sample_y = data[:,0], data[:,1]
 
     nyquist = 0.5 * sample_frequency
     low = cutoff_freq / nyquist
@@ -23,40 +25,45 @@ def denoise_fft(sample_x, sample_y, cutoff_freq, denoise_order, sample_frequency
     fft_original = np.abs(np.fft.rfft(sample_y))
     fft_denoised = np.abs(np.fft.rfft(denoised_sample_y))
 
-    # Plot the original and denoised signals
-    plt.figure(figsize=(8, 4))
-    plt.subplot(2, 1, 1)
-    plt.scatter(sample_x, sample_y, label='Original Signal')
-    plt.plot(sample_x, denoised_sample_y, color='r', label='Denoised Signal')
-    plt.legend()
+    if viz:
+        # Plot the original and denoised signals
+        plt.figure(figsize=(8, 4))
+        plt.subplot(2, 1, 1)
+        plt.scatter(sample_x, sample_y, label='Original Signal')
+        plt.plot(sample_x, denoised_sample_y, color='r', label='Denoised Signal')
+        plt.legend()
 
-    # Plot the frequency spectrum
-    plt.subplot(2, 1, 2)
-    plt.plot(freq, fft_original, label='Original Spectrum')
-    plt.plot(freq, fft_denoised, label='Denoised Spectrum')
-    plt.xlabel('Frequency (Hz)')
-    plt.ylabel('Amplitude')
-    plt.legend()
-    plt.grid()
-    plt.yscale('log')
+        # Plot the frequency spectrum
+        plt.subplot(2, 1, 2)
+        plt.plot(freq, fft_original, label='Original Spectrum')
+        plt.plot(freq, fft_denoised, label='Denoised Spectrum')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Amplitude')
+        plt.legend()
+        plt.grid()
+        plt.yscale('log')
+        plt.tight_layout()
+        plt.show()
     
-    plt.tight_layout()
-    plt.show()
-
-    return denoised_sample_y
+    data = np.stack([sample_x, denoised_sample_y], 1)
+    return data
 
 from scipy.signal import medfilt
-def denoise_median(sample_x, sample_y, kernel_size):
+def denoise_median(data, kernel_size, viz=False):
 
-    # Apply median filtering with a window size of 3
-    filtered_data = medfilt(sample_y, kernel_size=51)
+    sample_x, sample_y = data[:,0], data[:,1]
+   # Apply median filtering with a window size of 3
+    filtered_data = medfilt(sample_y, kernel_size=kernel_size)
 
-    plt.figure(figsize=(8,2))
-    plt.scatter(sample_x, sample_y, label='Original Signal')
-    plt.plot(sample_x, filtered_data, color='r', label='Denoised Signal')
-    plt.tight_layout()
-    plt.show()
-    return filtered_data
+    if viz:
+        plt.figure(figsize=(8,2))
+        plt.scatter(sample_x, sample_y, label='Original Signal')
+        plt.plot(sample_x, filtered_data, color='r', label='Denoised Signal')
+        plt.tight_layout()
+        plt.show()
+
+    data = np.stack([sample_x, filtered_data], 1)
+    return data
 
 def select_range(data, start, end):
     x = data[:,0]
