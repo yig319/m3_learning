@@ -200,6 +200,8 @@ def fit_exp_function(xs, ys, growth_name, fit_settings = {'I_diff': 5000, 'unify
   
 
     I_diff = fit_settings['I_diff']
+    if I
+
     bounds = fit_settings['bounds']
     p_init = fit_settings['p_init']
     unify = fit_settings['unify']

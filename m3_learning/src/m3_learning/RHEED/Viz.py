@@ -287,7 +287,7 @@ class Viz:
     #                          figsize=(16, subplot_height*len(ys)//img_per_row+1))  
     # def show_grid_plots(xs, ys, labels=None, ys_fit1=None, ys_fit2=None, img_per_row=4, subplot_height=3, ylim=None, legend=None):
     @staticmethod
-    def show_grid_plots(axes, xs, ys, labels=None, xlabel=None, ylabel=None, ylim=None, legend=None, color=None):
+    def show_grid_plots(axes, xs, ys, ys_2=None, labels=None, xlabel=None, ylabel=None, ylim=None, legend=None, color=None):
         """
         Show a grid of plots.
 
@@ -310,7 +310,12 @@ class Viz:
         for i in range(len(ys)):
             # i = Viz.set_index(axes, i, total_length=len(ys))
             axes[i].plot(xs[i], ys[i], marker='.', markersize=2, color=color)
+
+            if not isinstance(ys_2, type(None)):
+             axes[i].plot(xs[i], ys_2[i], marker='+', markersize=2)
+
             Viz.set_labels(axes[i], xlabel=xlabel, ylabel=ylabel, ylim=ylim, legend=legend)
+
         if not isinstance(labels, type(None)):
             # labelfigs(axes[i], 1, string_add=labels[i], loc='bm', size=6)
             labelfigs(axes[i], 1, loc='cb', size=6)
@@ -352,7 +357,7 @@ class Viz:
 
 
     @staticmethod
-    def plot_fit_details(x, y1, y2, y3, index_list, figsize=None, save_name=None, printing=None):
+    def plot_fit_details(x, y1, y2, y3, index_list, figsize=None, style='print', save_name=None, printing=None):
         """
         Plot the fit details.
 
@@ -362,6 +367,8 @@ class Viz:
             y2: Y-axis values for prediction.
             y3: Y-axis values for failed data.
             index_list: List of index values.
+            figsize (tuple, optional): Figure size. Defaults to None.
+            style (str, optional): Style of the plot ('print' or 'presentation'). Defaults to 'print'.
             save_name (str, optional): Name to save the plot. Defaults to None.
             printing: Printing object.
 
