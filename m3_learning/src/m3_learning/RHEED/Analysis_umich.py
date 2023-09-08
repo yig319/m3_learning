@@ -6,17 +6,6 @@ from m3_learning.RHEED.Viz import Viz
 from m3_learning.RHEED.Analysis import detect_peaks, process_rheed_data , fit_exp_function
 seq_colors = ['#00429d','#2e59a8','#4771b2','#5d8abd','#73a2c6','#8abccf','#a5d5d8','#c5eddf','#ffffe0']
 <<<<<<< HEAD
-import csv
-def read_txt_to_numpy(filename):
-
-    # Load data using numpy.loadtxt
-    data = np.loadtxt(filename, dtype=float, skiprows=1, comments=None)
-
-    # Extract header from the first row
-    with open(filename, 'r') as file:
-        header = file.readline().strip().split()
-    return header, data
-=======
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import butter, filtfilt
@@ -69,6 +58,18 @@ def denoise_median(sample_x, sample_y, kernel_size):
     plt.tight_layout()
     plt.show()
     return filtered_data
+=======
+import csv
+def read_txt_to_numpy(filename):
+
+    # Load data using numpy.loadtxt
+    data = np.loadtxt(filename, dtype=float, skiprows=1, comments=None)
+
+    # Extract header from the first row
+    with open(filename, 'r') as file:
+        header = file.readline().strip().split()
+    return header, data
+>>>>>>> 70b72f430c48111d3cef02f9c982c4016dd03af2
 >>>>>>> aa7746bc3ecb155c3a6a4d1875edf81476d9d5bf
 
 def select_range(data, start, end):
@@ -132,9 +133,7 @@ def fit_curves(xs, ys, x_peaks, sample_x, fit_settings):
 def analyze_rheed_data(data, camera_freq, laser_freq, detect_param={'step_size':3, 'prominence':10}, viz_curves=False, 
                        viz_fittings=False, viz_ab=False, n_std=3, trim_first=0, fit_settings={'savgol_window_order': (15, 3), 'pca_component': 10, 'I_diff': None, 
                                                                                               'unify':False, 'bounds':[0.001, 1], 'p_init':[0.1, 0.4, 0.1]}):
-=======
-def analyze_rheed_data(data, camera_freq, laser_freq, fit_settings={'step_size':5, 'prominence':0.1, 'length':500, 'savgol_window_order': (15,3), 'pca_component': 10, 'I_diff': 8000, 'unify':True, 'bounds':[0.01, 1], 'p_init':(1, 0.1)}, viz_curves=False, viz_fittings=False, viz_ab=False, n_std=3, trim_first=0):
->>>>>>> aa7746bc3ecb155c3a6a4d1875edf81476d9d5bf
+>>>>>>> 70b72f430c48111d3cef02f9c982c4016dd03af2
     if isinstance(data, str):
         data = np.loadtxt(data)
     sample_x, sample_y = data[:,0], data[:,1]
