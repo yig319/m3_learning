@@ -23,7 +23,7 @@ def detect_peaks(curve_x, curve_y, camera_freq, laser_freq, step_size, prominenc
     """
     dist = int(camera_freq/laser_freq*0.6)
     step = np.hstack((np.ones(step_size), -1*np.ones(step_size)))
-    dary_step = np.convolve(curve_y, step, mode='valid')
+    dary_step = np.convolve(curve_y, step, mode='full')
     dary_step = np.abs(dary_step)
 
     filtered_curve_y = dary_step/step_size
@@ -224,6 +224,7 @@ def fit_exp_function(xs, ys, growth_name, fit_settings = {'I_diff': 5000, 'unify
             labels.append(f'{growth_name}-index {i+1}:\ny=({np.round(a, 2)}t+{np.round(b, 2)})*(1-exp(-t/{np.round(relax, 2)}))')
             parameters.append((a, b, relax))
             losses.append((0, 0))
+            y_nor_fit_failed = y_nor_fit
 
         else:
             # determine fitting function with simplified functions
@@ -269,7 +270,7 @@ def fit_exp_function(xs, ys, growth_name, fit_settings = {'I_diff': 5000, 'unify
     return np.array(parameters), [xs, ys, ys_fit, ys_nor, ys_nor_fit, ys_nor_fit_failed, labels, losses]
 
 
-def analyze_curves(dataset, growth_dict, spot, metric, interval=1000, fit_settings={'savgol_window_order': (15,3), 'pca_component': 10, 'I_diff': 8000, 'unify':True, 'bounds':[0.01, 1], 'p_init':(1, 0.1)}):
+def analyze_curves(dataset, growth_dict, spot, metric, interval=1000, fit_settings={'step_size':5, 'prominence':0.1, 'length':500, 'savgol_window_order': (15,3), 'pca_component': 10, 'I_diff': 8000, 'unify':True, 'bounds':[0.01, 1], 'p_init':(1, 0.1)}):
 
     """
     Analyzes RHEED curves for a given spot and metric.
@@ -300,9 +301,9 @@ def analyze_curves(dataset, growth_dict, spot, metric, interval=1000, fit_settin
 
         # detect peaks
         x_peaks, xs, ys = detect_peaks(sample_x, sample_y, camera_freq=dataset.camera_freq, 
-                                       laser_freq=growth_dict[growth], step_size=5, prominence=0.1)
+                                       laser_freq=growth_dict[growth], step_size=fit_settings['step_size'], prominence=fit_settings['prominence'])
         
-        xs, ys = process_rheed_data(xs, ys, length=500, savgol_window_order=fit_settings['savgol_window_order'], 
+        xs, ys = process_rheed_data(xs, ys, length=fit_settings['length'], savgol_window_order=fit_settings['savgol_window_order'], 
                                     pca_component=fit_settings['pca_component'])        
 
         # fit exponential function

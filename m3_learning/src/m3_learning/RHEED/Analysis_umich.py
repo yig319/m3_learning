@@ -5,6 +5,58 @@ from m3_learning.viz.layout import layout_fig
 from m3_learning.RHEED.Viz import Viz
 from m3_learning.RHEED.Analysis import detect_peaks, process_rheed_data , fit_exp_function
 seq_colors = ['#00429d','#2e59a8','#4771b2','#5d8abd','#73a2c6','#8abccf','#a5d5d8','#c5eddf','#ffffe0']
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.signal import butter, filtfilt
+
+def denoise_fft(sample_x, sample_y, cutoff_freq, denoise_order, sample_frequency):
+
+    nyquist = 0.5 * sample_frequency
+    low = cutoff_freq / nyquist
+    b, a = butter(denoise_order, low, btype='low')
+
+    # Apply the low-pass filter to denoise the signal
+    denoised_sample_y = filtfilt(b, a, sample_y)
+
+    # Compute the frequency spectrum of the original and denoised signals
+    freq = np.fft.rfftfreq(len(sample_x), d=1/sample_frequency)
+    fft_original = np.abs(np.fft.rfft(sample_y))
+    fft_denoised = np.abs(np.fft.rfft(denoised_sample_y))
+
+    # Plot the original and denoised signals
+    plt.figure(figsize=(8, 4))
+    plt.subplot(2, 1, 1)
+    plt.scatter(sample_x, sample_y, label='Original Signal')
+    plt.plot(sample_x, denoised_sample_y, color='r', label='Denoised Signal')
+    plt.legend()
+
+    # Plot the frequency spectrum
+    plt.subplot(2, 1, 2)
+    plt.plot(freq, fft_original, label='Original Spectrum')
+    plt.plot(freq, fft_denoised, label='Denoised Spectrum')
+    plt.xlabel('Frequency (Hz)')
+    plt.ylabel('Amplitude')
+    plt.legend()
+    plt.grid()
+    plt.yscale('log')
+    
+    plt.tight_layout()
+    plt.show()
+
+    return denoised_sample_y
+
+from scipy.signal import medfilt
+def denoise_median(sample_x, sample_y, kernel_size):
+
+    # Apply median filtering with a window size of 3
+    filtered_data = medfilt(sample_y, kernel_size=51)
+
+    plt.figure(figsize=(8,2))
+    plt.scatter(sample_x, sample_y, label='Original Signal')
+    plt.plot(sample_x, filtered_data, color='r', label='Denoised Signal')
+    plt.tight_layout()
+    plt.show()
+    return filtered_data
 
 def select_range(data, start, end):
     x = data[:,0]
@@ -14,10 +66,14 @@ def select_range(data, start, end):
     data = np.stack([x_selected, y_selected], 1)
     return data
 
+def reset_tails(ys, ratio=0.1):
+    for i, y in enumerate(ys):
+        num = int(len(y) * ratio)
+        y[-num:] = y[-2*num:-num]
+        ys[i] = y
+    return ys
 
-def fit_curves(xs, ys, x_peaks, sample_x):
-    fit_settings = {'savgol_window_order': (15, 3), 'pca_component': 10, 'I_diff': 15000, 
-                'unify':False, 'bounds':[0.001, 1], 'p_init':[0.1, 0.4, 0.1]}
+def fit_curves(xs, ys, x_peaks, sample_x, fit_settings):
 
     x_end = 0
     length_list = []
@@ -59,19 +115,20 @@ def fit_curves(xs, ys, x_peaks, sample_x):
     return parameters_all, x_list_all, [xs_all, ys_all, ys_fit_all, ys_nor_all, ys_nor_fit_all, ys_nor_fit_all_failed, labels_all, losses_all]
 
 
-def analyze_rheed_data(data, camera_freq, laser_freq, detect_param={'step_size':3, 'prominence':10}, viz_curves=False, viz_fittings=False, viz_ab=False, n_std=3, trim_first=0):
+def analyze_rheed_data(data, camera_freq, laser_freq, fit_settings={'step_size':5, 'prominence':0.1, 'length':500, 'savgol_window_order': (15,3), 'pca_component': 10, 'I_diff': 8000, 'unify':True, 'bounds':[0.01, 1], 'p_init':(1, 0.1)}, viz_curves=False, viz_fittings=False, viz_ab=False, n_std=3, trim_first=0):
     if isinstance(data, str):
         data = np.loadtxt(data)
     sample_x, sample_y = data[:,0], data[:,1]
     
-    step_size = detect_param['step_size']
-    prominence = detect_param['prominence']
+    step_size = fit_settings['step_size']
+    prominence = fit_settings['prominence']
 
     # plt.plot(sample_x, sample_y)
     # plt.show()
     
     x_peaks, xs, ys = detect_peaks(sample_x, sample_y, camera_freq=camera_freq, laser_freq=laser_freq, step_size=step_size, prominence=prominence)
     
+    ys = reset_tails(ys)
     if trim_first != 0:
         xs_trimed, ys_trimed = [], []
         for x, y in zip(xs, ys):
@@ -84,7 +141,7 @@ def analyze_rheed_data(data, camera_freq, laser_freq, detect_param={'step_size':
         fig, axes = layout_fig(len(ys_sample), mod=6, figsize=(12,2*len(ys_sample)//6+1), layout='compressed')
         Viz.show_grid_plots(axes, xs_sample, ys_sample, labels=None, xlabel=None, ylabel=None, ylim=None, legend=None, color=None)
 
-    parameters_all, x_list_all, info = fit_curves(xs, ys, x_peaks, sample_x)
+    parameters_all, x_list_all, info = fit_curves(xs, ys, x_peaks, sample_x, fit_settings)
     [xs_all, ys_all, ys_fit_all, ys_nor_all, ys_nor_fit_all, ys_nor_fit_failed_all, labels_all, losses_all] = info
     
     if viz_fittings:
