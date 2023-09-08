@@ -115,9 +115,7 @@ def fit_curves(xs, ys, x_peaks, sample_x, fit_settings):
     return parameters_all, x_list_all, [xs_all, ys_all, ys_fit_all, ys_nor_all, ys_nor_fit_all, ys_nor_fit_all_failed, labels_all, losses_all]
 
 
-def analyze_rheed_data(data, camera_freq, laser_freq, detect_param={'step_size':3, 'prominence':10}, viz_curves=False, 
-                       viz_fittings=False, viz_ab=False, n_std=3, trim_first=0, fit_settings={'savgol_window_order': (15, 3), 'pca_component': 10, 'I_diff': None, 
-                                                                                              'unify':False, 'bounds':[0.001, 1], 'p_init':[0.1, 0.4, 0.1]}):
+def analyze_rheed_data(data, camera_freq, laser_freq, fit_settings={'step_size':5, 'prominence':0.1, 'length':500, 'savgol_window_order': (15,3), 'pca_component': 10, 'I_diff': 8000, 'unify':True, 'bounds':[0.01, 1], 'p_init':(1, 0.1)}, viz_curves=False, viz_fittings=False, viz_ab=False, n_std=3, trim_first=0):
     if isinstance(data, str):
         data = np.loadtxt(data)
     sample_x, sample_y = data[:,0], data[:,1]
@@ -147,10 +145,8 @@ def analyze_rheed_data(data, camera_freq, laser_freq, detect_param={'step_size':
     [xs_all, ys_all, ys_fit_all, ys_nor_all, ys_nor_fit_all, ys_nor_fit_failed_all, labels_all, losses_all] = info
     
     if viz_fittings:
-        fig, axes = layout_fig(len(xs_all), mod=6, layout='compressed')
-        # Viz.plot_fit_details(xs_all, ys_nor_all, ys_nor_fit_all, ys_nor_fit_failed_all, index_list=range(len(xs_all)), figsize=(12,0.3*len(x_peaks)//6+1))
-        Viz.show_grid_plots(axes, xs_all, ys_nor_all, ys_nor_fit_all, labels=labels_all, xlabel=None, ylabel=None, ylim=None, legend=None, color=None)
-
+        Viz.plot_fit_details(xs_all, ys_nor_all, ys_nor_fit_all, ys_nor_fit_failed_all, index_list=range(len(xs_all)), figsize=(12,0.3*len(x_peaks)//6+1))
+        
     # n_std = 3
     tau = parameters_all[:,2]/laser_freq
     x_clean = x_list_all[np.where(tau < np.mean(tau) + n_std*np.std(tau))[0]]
@@ -183,7 +179,65 @@ def analyze_rheed_data(data, camera_freq, laser_freq, detect_param={'step_size':
     return parameters_all, x_list_all, info, tau
 
 
-def plot_activation_energy(temp_list, tau_list, ylim1=None, ylim2=None, save_path=None):
+def analyze_txt_rheed(file, camera_freq, laser_freq, detect_param={'step_size':3, 'prominence':10}, viz_curves=False, viz_fittings=False, viz_ab=False, n_std=3):
+
+    step_size = detect_param['step_size']
+    prominence = detect_param['prominence']
+
+    data = np.loadtxt(file)
+    sample_x, sample_y = data[:,0], data[:,1]
+    
+
+
+    # plt.plot(sample_x, sample_y)
+    # plt.show()
+    
+    x_peaks, xs, ys = detect_peaks(sample_x, sample_y, camera_freq=camera_freq, laser_freq=laser_freq, step_size=step_size, prominence=prominence)
+
+    if viz_curves:
+        xs_sample, ys_sample = xs[::1], ys[::1]
+        fig, axes = layout_fig(len(ys_sample), mod=6, figsize=(6,len(ys_sample)//6+1), layout='compressed')
+        Viz.show_grid_plots(axes, xs_sample, ys_sample, labels=None, xlabel=None, ylabel=None, ylim=None, legend=None, color=None)
+
+    parameters_all, x_list_all, info = fit_curves(xs, ys, x_peaks, sample_x)
+    [xs_all, ys_all, ys_fit_all, ys_nor_all, ys_nor_fit_all, ys_nor_fit_failed_all, labels_all, losses_all] = info
+    
+    if viz_fittings:
+        Viz.plot_fit_details(xs_all, ys_nor_all, ys_nor_fit_all, ys_nor_fit_failed_all, index_list=range(len(xs_all)))
+
+    if viz_ab:
+        fig, axes = layout_fig(4, 1, figsize=(6, 2*4))
+        Viz.plot_curve(axes[0], sample_x, sample_y, plot_type='lineplot', xlabel='Time (s)', ylabel='Intensity (a.u.)', yaxis_style='sci')
+        Viz.plot_curve(axes[1], x_list_all, parameters_all[:,0], plot_type='lineplot', xlabel='Time (s)', ylabel='Fitted a (a.u.)')
+        Viz.plot_curve(axes[2], x_list_all, parameters_all[:,1], plot_type='lineplot', xlabel='Time (s)', ylabel='Fitted b (a.u.)')
+        Viz.plot_curve(axes[3], x_list_all, parameters_all[:,2], plot_type='lineplot', xlabel='Time (s)', ylabel='Characteristic Time (s)')
+        plt.show()
+
+    fig, ax1 = plt.subplots(1, 1, figsize=(6, 2.5), layout='compressed')
+    ax1.scatter(sample_x, sample_y, color='k', s=1)
+    Viz.set_labels(ax1, xlabel='Time (s)', ylabel='Intensity (a.u.)', ticks_both_sides=False)
+
+    # n_std = 3
+    tau = parameters_all[:,2]/laser_freq
+    x_clean = x_list_all[np.where(tau < np.mean(tau) + n_std*np.std(tau))[0]]
+    tau = tau[np.where(tau < np.mean(tau) + n_std*np.std(tau))[0]]
+
+    x_clean = x_clean[np.where(tau > np.mean(tau) - n_std*np.std(tau))[0]]
+    tau = tau[np.where(tau > np.mean(tau) - n_std*np.std(tau))[0]]
+    # print('mean of tau:', np.mean(tau))
+
+    ax2 = ax1.twinx()
+    ax2.scatter(x_list_all, parameters_all[:,2], color=seq_colors[0], s=3)
+    ax2.plot(x_clean,  tau, color='#bc5090', markersize=3)
+    Viz.set_labels(ax2, ylabel='Characteristic Time (s)', yaxis_style='lineplot', ticks_both_sides=False)
+    ax2.tick_params(axis="y", color='k', labelcolor=seq_colors[0])
+    ax2.set_ylabel('Characteristic Time (s)', color=seq_colors[0])
+    plt.title('mean of tau: '+str(np.mean(tau)))
+    plt.show()
+    return parameters_all, x_list_all, info, tau
+
+
+def plot_activation_energy(temp_list, tau_list, save_path=None):
     tau_mean_list = [np.mean(t_list) for t_list in tau_list]
 
     fig, axes = plt.subplots(1, 2, figsize=(8,2.5))
@@ -193,8 +247,7 @@ def plot_activation_energy(temp_list, tau_list, ylim1=None, ylim2=None, save_pat
     axes[0].scatter(temp_list, tau_mean, color='k', s=10)
     axes[0].set_xlabel('T (C)')
     axes[0].set_ylabel('tau (s)')
-    if ylim1 is not None:
-        axes[0].set_ylim(*ylim1)
+    # axes[0].set_ylim(0,0.2)
 
     T = np.array(temp_list) + 273
     x = 1/(T)
@@ -206,8 +259,7 @@ def plot_activation_energy(temp_list, tau_list, ylim1=None, ylim2=None, save_pat
     axes[1].set_xlabel('1/T (1/K))')
     axes[1].set_ylabel(r'-ln($\tau$)')
     # axes[1].set_title('Ea=' + str(round(m*-8.617e-5, 2)) + ' eV')
-    if ylim2 is not None:
-        axes[1].set_ylim(*ylim2)
+    # axes[1].set_ylim(1.8,2.5)
 
     text = f'Ea={round(m*-8.617e-5, 2)}eV'
     bbox_props = dict(boxstyle="round,pad=0.3", edgecolor="white", facecolor="white")
