@@ -134,18 +134,19 @@ def fit_curves(xs, ys, x_peaks, sample_x, fit_settings):
     return parameters_all, x_list_all, [xs_all, ys_all, ys_fit_all, ys_nor_all, ys_nor_fit_all, ys_nor_fit_all_failed, labels_all, losses_all]
 
 
-def analyze_rheed_data(data, camera_freq, laser_freq, fit_settings={'step_size':5, 'prominence':0.1, 'length':500, 'savgol_window_order': (15,3), 'pca_component': 10, 'I_diff': 8000, 'unify':True, 'bounds':[0.01, 1], 'p_init':(1, 0.1)}, viz_curves=False, viz_fittings=False, viz_ab=False, n_std=3, trim_first=0):
+def analyze_rheed_data(data, camera_freq, laser_freq, fit_settings={'step_size':5, 'prominence':0.1, 'mode':'full', 'length':500, 'savgol_window_order': (15,3), 'pca_component': 10, 'I_diff': 8000, 'unify':True, 'bounds':[0.01, 1], 'p_init':(1, 0.1)}, viz_curves=False, viz_fittings=False, viz_ab=False, n_std=3, trim_first=0):
     if isinstance(data, str):
         data = np.loadtxt(data)
     sample_x, sample_y = data[:,0], data[:,1]
     
     step_size = fit_settings['step_size']
     prominence = fit_settings['prominence']
+    mode = fit_settings['mode']
 
     # plt.plot(sample_x, sample_y)
     # plt.show()
     
-    x_peaks, xs, ys = detect_peaks(sample_x, sample_y, camera_freq=camera_freq, laser_freq=laser_freq, step_size=step_size, prominence=prominence)
+    x_peaks, xs, ys = detect_peaks(sample_x, sample_y, camera_freq=camera_freq, laser_freq=laser_freq, step_size=step_size, prominence=prominence, mode=mode)
     
     ys = reset_tails(ys)
     if trim_first != 0:
@@ -280,7 +281,7 @@ def plot_activation_energy(temp_list, tau_list, save_path=None):
     # axes[1].set_title('Ea=' + str(round(m*-8.617e-5, 2)) + ' eV')
     # axes[1].set_ylim(1.8,2.5)
 
-    text = f'Ea={round(m*-8.617e-5, 2)}eV'
+    text = f'Ea={round(m*-8.617e-5, 2)}eV, b={b}'
     bbox_props = dict(boxstyle="round,pad=0.3", edgecolor="white", facecolor="white")
     axes[1].text(0.25, 0.1, text, transform=axes[1].transAxes, fontsize=10, verticalalignment="center", horizontalalignment="center", bbox=bbox_props)
 
