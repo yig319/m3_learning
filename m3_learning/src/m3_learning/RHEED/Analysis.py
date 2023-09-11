@@ -6,7 +6,7 @@ from scipy.signal import savgol_filter
 from sklearn.decomposition import PCA
 from m3_learning.RHEED.Viz import Viz
 
-def detect_peaks(curve_x, curve_y, camera_freq, laser_freq, step_size, prominence):
+def detect_peaks(curve_x, curve_y, camera_freq, laser_freq, step_size, prominence, mode='full'):
     """
     Detects peaks in a curve based on the provided parameters.
 
@@ -23,7 +23,7 @@ def detect_peaks(curve_x, curve_y, camera_freq, laser_freq, step_size, prominenc
     """
     dist = int(camera_freq/laser_freq*0.6)
     step = np.hstack((np.ones(step_size), -1*np.ones(step_size)))
-    dary_step = np.convolve(curve_y, step, mode='full')
+    dary_step = np.convolve(curve_y, step, mode=mode)
     dary_step = np.abs(dary_step)
 
     filtered_curve_y = dary_step/step_size

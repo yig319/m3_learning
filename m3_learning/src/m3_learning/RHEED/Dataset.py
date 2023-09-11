@@ -1,3 +1,4 @@
+import os
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,6 +7,70 @@ from m3_learning.RHEED.Viz import Viz
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.ticker as ticker
 import plotly.express as px
+import glob
+import json # For dealing with metadata
+from datafed.CommandLib import API
+import random
+# from visualization_functions import show_images
+from m3_learning.RHEED.Viz import show_images
+
+def NormalizeData(data, range=(0,1)):
+    return (((data - np.min(data)) * (range[1] - range[0])) / (np.max(data) - np.min(data))) + range[0]
+
+def datafed_upload(file_path, parent_id, metadata=None, wait=True):
+    df_api = API()
+    file_name = os.path.basename(file_path)
+    dc_resp = df_api.dataCreate(file_name, metadata=json.dumps(metadata), parent_id=parent_id)
+    rec_id = dc_resp[0].data[0].id
+    put_resp = df_api.dataPut(rec_id, file_path, wait=wait)
+    print(put_resp)
+    
+def datafed_download(file_id, file_path, wait=True):
+    df_api = API()
+    get_resp = df_api.dataGet([file_id], # currently only accepts a list of IDs / aliases
+                              file_path, # directory where data should be downloaded
+                              orig_fname=True, # do not name file by its original name
+                              wait=wait, # Wait until Globus transfer completes
+    )
+    print(get_resp)
+
+
+def pack_rheed_data(h5_path, source_dir, ds_names_load, ds_names_create=None, viz=True):
+    if ds_names_create==None:
+        ds_names_create = ds_names_load
+    h5 = h5py.File(h5_path, mode='a')
+    for ds_name_load, ds_name_create in zip(ds_names_load, ds_names_create):
+        file_list = glob.glob(source_dir+'/'+ds_name_load+'.*')
+        length = len(file_list)
+        img_shape = plt.imread(file_list[0]).shape
+        print(ds_name_load, ds_names_create, length, img_shape, plt.imread(file_list[0]).dtype)
+
+        createdata = h5.create_dataset(ds_name_create, shape=(length, *img_shape), dtype=np.uint8)
+        for i, file in enumerate(file_list):
+            if i % 10000 == 0:
+                print(f'{i} - {i+10000} ...')
+            createdata[i] = plt.imread(file)
+
+        imgs = []
+        if viz:
+            random_files = random.choices(file_list, k=8)
+            for file in random_files:
+                imgs.append(plt.imread(file))
+            show_images(imgs, img_per_row=8)
+            
+def viz_unpacked_images(source_dir, ds_names):
+    for ds_name in ds_names:
+        print(ds_name, len(glob.glob(source_dir+'/'+ds_name+'.*')), 
+          plt.imread(glob.glob(source_dir+'/'+ds_name+'.*')[0]).shape)
+
+        files = glob.glob(source_dir+ds_name+'.*')
+        files = random.choices(files, k=16)
+        imgs = []
+        for file in files:
+            imgs.append(plt.imread(file))
+        print(ds_name)
+        show_images(imgs, img_per_row=8)
+
 
 def compress_gaussian_params_H5(file_in, str=None, compression='gzip', compression_opts=9):
     """
