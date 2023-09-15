@@ -1,12 +1,15 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy import signal
 from scipy.optimize import curve_fit
 from scipy.stats import zscore
 from scipy.signal import savgol_filter
+from scipy.signal import butter, filtfilt
+
 from sklearn.decomposition import PCA
 from m3_learning.RHEED.Viz import Viz
 
-def detect_peaks(curve_x, curve_y, camera_freq, laser_freq, step_size, prominence, mode='full'):
+def detect_peaks(curve_x, curve_y, camera_freq, laser_freq, curve_params):
     """
     Detects peaks in a curve based on the provided parameters.
 
@@ -15,18 +18,23 @@ def detect_peaks(curve_x, curve_y, camera_freq, laser_freq, step_size, prominenc
         curve_y (numpy.array): The y-values of the curve.
         camera_freq (float): The frequency of the camera.
         laser_freq (float): The frequency of the laser.
-        step_size (int): The step size for convolution.
+        convolve_step (int): The step size for convolution.
         prominence (float): The prominence threshold for peak detection.
 
     Returns:
         tuple: A tuple containing the peak positions, partial curve x-values, and partial curve y-values.
     """
+    convolve_step = curve_params['convolve_step']
+    prominence = curve_params['prominence']
+    mode = curve_params['mode']
+
+
     dist = int(camera_freq/laser_freq*0.6)
-    step = np.hstack((np.ones(step_size), -1*np.ones(step_size)))
+    step = np.hstack((np.ones(convolve_step), -1*np.ones(convolve_step)))
     dary_step = np.convolve(curve_y, step, mode=mode)
     dary_step = np.abs(dary_step)
 
-    filtered_curve_y = dary_step/step_size
+    filtered_curve_y = dary_step/convolve_step
     x_peaks, properties = signal.find_peaks(dary_step, prominence=prominence, distance=dist)
     x_peaks = x_peaks[x_peaks>dist]
     x_peaks = x_peaks[x_peaks<len(curve_y)-dist]
@@ -94,9 +102,9 @@ def normalize_0_1(y, I_start, I_end, I_diff=None, unify=True):
         y_nor = (y-I_start)
     elif unify:
         if I_end < I_start:
-            y_nor = (I_start-y)/I_diff
-        else:
             y_nor = (y-I_start)/I_diff
+        else:
+            y_nor = (I_start-y)/I_diff
     else:
         if I_end < I_start:
             y_nor = (y-I_end)/I_diff
@@ -140,41 +148,210 @@ def de_normalize_0_1(y_nor_fit, I_start, I_end, I_diff=None, unify=True):
     return y_fit
     
 
-def process_rheed_data(xs, ys, length=500, savgol_window_order=(15, 3), pca_component=10):    
+def denoise_fft(sample_x, sample_y, cutoff_freq, denoise_order, sample_frequency, viz=False):
+
+    nyquist = 0.5 * sample_frequency
+    low = cutoff_freq / nyquist
+    b, a = butter(denoise_order, low, btype='low')
+
+    # Apply the low-pass filter to denoise the signal
+    denoised_sample_y = filtfilt(b, a, sample_y)
+
+    # Compute the frequency spectrum of the original and denoised signals
+    freq = np.fft.rfftfreq(len(sample_x), d=1/sample_frequency)
+    fft_original = np.abs(np.fft.rfft(sample_y))
+    fft_denoised = np.abs(np.fft.rfft(denoised_sample_y))
+
+    if viz:
+        fig, axes = plt.subplots(2, 1, figsize=(8, 4))
+        axes[0].scatter(sample_x, sample_y, label='Original Signal')
+        axes[0].plot(sample_x, denoised_sample_y, color='r', label='Denoised Signal')
+        axes[0].legend()
+
+        axes[1].plot(freq, fft_original, label='Original Spectrum')
+        axes[1].plot(freq, fft_denoised, label='Denoised Spectrum')
+        axes[1].set_xlabel('Frequency (Hz)')
+        axes[1].set_ylabel('Amplitude')
+        axes[1].set_yscale('log')
+        axes[1].legend()
+        plt.tight_layout()
+        plt.title('fft filter')
+        plt.show()
+    return sample_x, denoised_sample_y
+
+from scipy.signal import medfilt
+def denoise_median(sample_x, sample_y, kernel_size, viz=False):
+    denoised_sample_y = medfilt(sample_y, kernel_size=kernel_size)
+    if viz:
+        plt.figure(figsize=(8,2))
+        plt.scatter(sample_x, sample_y, label='Original Signal')
+        plt.plot(sample_x, denoised_sample_y, color='r', label='Denoised Signal')
+        plt.tight_layout()
+        plt.title('median filter')
+        plt.show()
+
+    return sample_x, denoised_sample_y
+
+def process_rheed_data(sample_x, sample_y, camera_freq, denoise_params, viz=False):    
 
     """Processes RHEED data by interpolating, denoising, and applying dimensionality reduction.
 
     Args:
-        xs (list): List of x-values for each partial curve.
-        ys (list): List of y-values for each partial curve.
-        length (int, optional): The desired length for interpolation. Defaults to 500.
         savgol_window_order (tuple, optional): The order of the Savitzky-Golay filter window. Defaults to (15, 3).
         pca_component (int, optional): The number of components for PCA. Defaults to 10.
 
     Returns:
         tuple: A."""
 
-    # interpolate the data to same size 
-    if length:
-        xs_processed = []
-        ys_processed = []
+    savgol_window_order = denoise_params['savgol_window_order']
+    pca_component = denoise_params['pca_component']
+    fft_cutoff_order = denoise_params['fft_cutoff_order']
+    median_kernel_size = denoise_params['median_kernel_size'] 
+
+    denoised_sample_y = sample_y
+
+    # denoise the data
+    if not isinstance(savgol_window_order, type(None)):
+        denoised_sample_y = savgol_filter(sample_y, savgol_window_order[0], savgol_window_order[1])
+        if viz:
+            fig, ax = plt.subplots(1, 1, figsize=(8, 2))
+            ax.scatter(sample_x, sample_y, label='Original Signal')
+            ax.plot(sample_x, denoised_sample_y, color='r', label='Denoised Signal')
+            plt.legend()
+            plt.tight_layout()
+            plt.title('savgol_filter')
+            plt.show()
+
+    # # apply PCA
+    # if pca_component:
+    #     sample_y = denoised_sample_y 
+    #     pca = PCA(n_components=pca_component)
+    #     denoised_sample_y = pca.inverse_transform(pca.fit_transform(sample_y))
+    #     if viz:
+    #         fig, ax = plt.subplots(1, 1, figsize=(8, 4))
+    #         ax.scatter(sample_x, sample_y, label='Original Signal')
+    #         ax.plot(sample_x, denoised_sample_y, color='r', label='Denoised Signal')
+    #         plt.legend()
+    #         plt.tight_layout()
+    #         plt.show()
+
+    # fft
+    if not isinstance(fft_cutoff_order, type(None)):
+        sample_y = denoised_sample_y 
+        denoised_sample_y = denoise_fft(sample_x, sample_y, cutoff_freq=20, denoise_order=1, 
+                                        sample_frequency=camera_freq, viz=viz)
+    
+    # median filter
+    if not isinstance(median_kernel_size, type(None)):
+        sample_y = denoise_median(sample_x, sample_y, kernel_size=median_kernel_size, viz=viz)
+
+    return sample_x, sample_y
+
+
+def reset_tails(ys, ratio=0.1):
+    for i, y in enumerate(ys):
+        num = int(len(y) * ratio)
+        y[-num:] = y[-2*num:-num]
+        ys[i] = y
+    return ys
+
+def linear_func(x, a, b):
+    return a*x + b
+
+from scipy.optimize import curve_fit
+def remove_linear_bg(xs, ys, linear_ratio=0.8):
+    for i in range(len(ys)):
+        length = int(len(ys[i]) * linear_ratio)
+        popt, pcov = curve_fit(linear_func, xs[i][-length:], ys[i][-length:])
+        a, b = popt
+        y_fit = linear_func(np.array(xs[i]), a, b=0)
+        ys[i] = ys[i] - y_fit
+    return xs, ys
+
+def process_curves(xs, ys, curve_params):
+
+    tune_tail = curve_params['tune_tail']
+    trim_first = curve_params['trim_first']
+
+    # trim tails
+    if tune_tail:
+        ys = reset_tails(ys)
+    if trim_first != 0:
+        xs_trimed, ys_trimed = [], []
         for x, y in zip(xs, ys):
-            x_sl = np.linspace(np.min(x), np.max(x), length)
-            y_sl = np.interp(x_sl, x, y)
-            xs_processed.append(x_sl)
-            ys_processed.append(y_sl)
-    xs_processed, ys_processed = np.array(xs_processed), np.array(ys_processed)
+            ys_trimed.append(y[trim_first:])
+            xs_trimed.append(np.linspace(x[0], x[-1], len(y[trim_first:])))
+        xs, ys = xs_trimed, ys_trimed
 
-    # denoise
-    if savgol_window_order:
-        ys_processed = savgol_filter(ys_processed, savgol_window_order[0], savgol_window_order[1])
-    if pca_component:
-        pca = PCA(n_components=pca_component)
-        ys_processed = pca.inverse_transform(pca.fit_transform(ys_processed))
-    return xs_processed, ys_processed
+    # remove linear background
+    xs, ys = remove_linear_bg(xs, ys, linear_ratio=0.8)
+    return xs, ys
+
+# def process_rheed_data(xs, ys, 
+# camera_freq, savgol_window_order=(15, 3), pca_component=10, 
+#                         fft_cutoff=20, fft_order=1, median_kernel_size=51):    
+
+#     """Processes RHEED data by interpolating, denoising, and applying dimensionality reduction.
+
+#     Args:
+#         xs (list): List of x-values for each partial curve.
+#         ys (list): List of y-values for each partial curve.
+#         length (int, optional): The desired length for interpolation. Defaults to 500.
+#         savgol_window_order (tuple, optional): The order of the Savitzky-Golay filter window. Defaults to (15, 3).
+#         pca_component (int, optional): The number of components for PCA. Defaults to 10.
+
+#     Returns:
+#         tuple: A."""
+
+#     # interpolate the data to same size 
+#     if length == None:
+#         length = int(np.mean([len(x) for x in xs]))
+
+#     xs_processed = []
+#     ys_processed = []
+#     for x, y in zip(xs, ys):
+#         x_sl = np.linspace(np.min(x), np.max(x), length)
+#         y_sl = np.interp(x_sl, x, y)
+#         xs_processed.append(x_sl)
+#         ys_processed.append(y_sl)
+#     xs_processed, ys_processed = np.array(xs_processed), np.array(ys_processed)
+
+#     # denoise the data
+#     if savgol_window_order:
+#         ys_processed = savgol_filter(ys_processed, savgol_window_order[0], savgol_window_order[1])
+
+#     # apply PCA
+#     if pca_component:
+#         pca = PCA(n_components=pca_component)
+#         ys_processed = pca.inverse_transform(pca.fit_transform(ys_processed))
+
+#     # fft
+#     if fft_cutoff and fft_order:
+#         denoised_sample_y = denoise_fft(sample_x, sample_y, cutoff_freq=20, denoise_order=1, sample_frequency=camera_freq)
+    
+#     # median filter
+#     if median_kernel_size:
+#         denoised_sample_y = denoise_median(sample_x, sample_y, kernel_size=median_kernel_size)
+
+#     # trim tails
+#     trim_first = fit_settings['trim_first']
+#     if fit_settings['tune_tail']:
+#         ys = reset_tails(ys)
+#     if trim_first != 0:
+#         xs_trimed, ys_trimed = [], []
+#         for x, y in zip(xs, ys):
+#             ys_trimed.append(y[trim_first:])
+#             xs_trimed.append(np.linspace(x[0], x[-1], len(y[trim_first:])))
+#         xs, ys = xs_trimed, ys_trimed
+
+#     # remove linear background
+#     xs, ys = remove_linear_bg(xs, ys, linear_ratio=0.8)
+    
+#     return xs_processed, ys_processed
 
 
-def fit_exp_function(xs, ys, growth_name, fit_settings = {'I_diff': 5000, 'unify': True, 'bounds':[0.01, 1], 'p_init':[0.1, 0.4, 0.1]}):
+def fit_exp_function(xs, ys, growth_name,
+        fit_settings = {'I_diff': None, 'unify':True, 'bounds':[0.01, 1], 'p_init':(1, 0.1, 0.4), 'n_std':1}):
     """Fits a""n exponential function to the given data.
 
     Args:
@@ -204,6 +381,7 @@ def fit_exp_function(xs, ys, growth_name, fit_settings = {'I_diff': 5000, 'unify
     p_init = fit_settings['p_init']
     unify = fit_settings['unify']
 
+    print(unify)
     parameters = []
     ys_nor, ys_nor_fit, ys_nor_fit_failed, ys_fit = [], [], [], []
     labels, losses = [], []
