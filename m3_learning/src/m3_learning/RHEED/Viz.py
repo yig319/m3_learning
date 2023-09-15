@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FormatStrFormatter
 import numpy as np
 import pylab as pl
 import seaborn as sns
@@ -222,7 +223,7 @@ class Viz:
 
     @staticmethod
     def set_labels(ax, xlabel=None, ylabel=None, title=None, xlim=None, ylim=None, yaxis_style='sci', 
-                logscale=False, legend=None, ticks_both_sides=True):
+                   logscale=False, legend=None, ticks_both_sides=True):
         """
         Set labels and other properties of the given axes.
 
@@ -247,7 +248,11 @@ class Viz:
         if type(xlim) != type(None): ax.set_xlim(xlim)
         if type(ylim) != type(None): ax.set_ylim(ylim)
         if yaxis_style == 'sci':
-            ax.ticklabel_format(axis='y', style='sci', scilimits=(0,0), useLocale=False)    
+            ax.ticklabel_format(axis='y', style='sci', scilimits=(0,0), useLocale=False)   
+        elif yaxis_style == 'float':
+            ax.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
+            # ax.ticklabel_format(axis='y', style='plain')   
+
         if logscale: ax.set_yscale("log") 
         if legend: ax.legend(legend)
         ax.tick_params(axis="x",direction="in")
@@ -399,11 +404,11 @@ class Viz:
 
             Viz.set_labels(axes[i], xlabel=xlabel, ylabel=ylabel, ylim=ylim, legend=legend)
 
-        if not isinstance(labels, type(None)):
-            # labelfigs(axes[i], 1, string_add=labels[i], loc='bm', size=6)
-            labelfigs(axes[i], 1, loc='cb', size=6)
-
-        # plt.show()
+        if isinstance(labels, type(None)):
+            labelfigs(axes[i], i, loc='cb', size=6)
+        else:
+            labelfigs(axes[i], i, string_add=str(labels[i]), loc='cb', size=6)
+        plt.show()
         
     @staticmethod
     def plot_loss_difference(ax1, x_all, y_all, x_coor_all, loss_diff, color_array, color_2, title=None):
@@ -440,7 +445,7 @@ class Viz:
 
 
     @staticmethod
-    def plot_fit_details(x, y1, y2, y3, index_list, figsize=None, style='print', save_name=None, printing=None):
+    def plot_fit_details(x, y1, y2, y3, labels, figsize=None, mod=6, style='print', logscale=False, layout='compressed', save_name=None, printing=None):
         """
         Plot the fit details.
 
@@ -449,7 +454,7 @@ class Viz:
             y1: Y-axis values for raw data.
             y2: Y-axis values for prediction.
             y3: Y-axis values for failed data.
-            index_list: List of index values.
+            labels: labels.
             figsize (tuple, optional): Figure size. Defaults to None.
             style (str, optional): Style of the plot ('print' or 'presentation'). Defaults to 'print'.
             save_name (str, optional): Name to save the plot. Defaults to None.
@@ -458,9 +463,10 @@ class Viz:
         Returns:
             None
         """
-        
-        mod = 6
-        if len(y1)//mod > 10:
+        if labels is None:
+            labels = range(len(y1))
+            
+        if len(y1)//mod > 10 and style == 'print':
             n_page = len(y1) // mod // 10 + 1
             for np in range(n_page):
                 start_plot = np*10*mod
@@ -472,7 +478,7 @@ class Viz:
                 if figsize == None:
                     figsize=(6, 1*(n_plot//mod+1))
                     
-                fig, axes = layout_fig(n_plot, mod=mod, figsize=figsize)
+                fig, axes = layout_fig(n_plot, mod=mod, figsize=figsize, layout='compressed')
                 axes = axes.flatten()[:n_plot]
                 for i in range(start_plot, start_plot+n_plot):
                     if np == n_page-1 and i == start_plot+n_plot-1:                    
@@ -487,15 +493,16 @@ class Viz:
                         l1 = axes[i%(10*mod)].plot(x[i], y1[i], marker='.', markersize=2, 
                                         color=(44/255,123/255,182/255, 0.5), label='Raw data')
                         l2 = axes[i%(10*mod)].plot(x[i], y2[i], linewidth=2, label='Prediction')
-                        l3 = axes[i%(10*mod)].plot(x[i], y3[i], linewidth=1, label='Failed')
+                        if not isinstance(y3, type(None)):
+                            l3 = axes[i%(10*mod)].plot(x[i], y3[i], linewidth=1, label='Failed')
 
                         if (i%(10*mod)+1) % mod == 1: ylabel = 'Intensity (a.u.)'
                         if np == n_page-1 and i%(10*mod)+1 >= len(axes)-mod: xlabel = 'Time (s)'
 
-                        Viz.set_labels(axes[i%(10*mod)], xlabel=xlabel, ylabel=ylabel)
+                        Viz.set_labels(axes[i%(10*mod)], xlabel=xlabel, ylabel=ylabel, logscale=logscale)
 
-                        labelfigs(axes[i%(10*mod)], None, string_add=str(index_list[i]), loc='ct', size=8, style='b')
-                        # labelfigs(axes[i%(10*mod)], None, string_add=str(index_list[i]), loc='ct', style='b')
+                        labelfigs(axes[i%(10*mod)], None, string_add=str(labels[i]), loc='ct', size=8, style='b')
+                        # labelfigs(axes[i%(10*mod)], None, string_add=str(labels[i]), loc='ct', style='b')
                         axes[i%(10*mod)].set_xticks([])
                         axes[i%(10*mod)].set_yticks([])
                         axes[i%(10*mod)].xaxis.set_tick_params(labelbottom=False)
@@ -506,7 +513,10 @@ class Viz:
                     printing.savefig(fig, save_name+'-'+str(np+1))
                 plt.show()
         else:
-            fig, axes = layout_fig(len(y1)+1, mod=mod, figsize=(6, 1*len(y1)//mod))
+            if figsize == None:
+                figsize=(6, 1*(n_plot//mod+1))
+                    
+            fig, axes = layout_fig(len(y1)+1, mod=mod, figsize=figsize, layout='compressed')
             axes = axes.flatten()[:len(y1)+1]
             for i in range(len(x)):
                 xlabel='Time (s)'
@@ -515,23 +525,24 @@ class Viz:
                 l1 = axes[i].plot(x[i], y1[i], marker='.', markersize=2, 
                                 color=(44/255,123/255,182/255, 0.5), label='Raw data')
                 l2 = axes[i].plot(x[i], y2[i], linewidth=2, label='Prediction')
-                l3 = axes[i].plot(x[i], y3[i], linewidth=1, label='Failed')
+                if not isinstance(y3, type(None)):
+                    l3 = axes[i].plot(x[i], y3[i], linewidth=1, label='Failed')
                 if i+1 < len(axes)-mod: xlabel = None
                 if not (i+1) % mod == 1: ylabel = None
-                Viz.set_labels(axes[i], xlabel=xlabel, ylabel=ylabel)
-                labelfigs(axes[i], None, string_add=str(index_list[i]), loc='ct', size=8, style='b')
-                axes[i].set_xticks([])
-                axes[i].set_yticks([])
-                axes[i].xaxis.set_tick_params(labelbottom=False)
-                axes[i].yaxis.set_tick_params(labelleft=False)
+                Viz.set_labels(axes[i], xlabel=xlabel, ylabel=ylabel, logscale=logscale, yaxis_style='float')
+                labelfigs(axes[i], None, string_add=str(labels[i]), loc='ct', size=8, style='b')
+                # axes[i].set_xticks([])
+                # axes[i].set_yticks([])
+                # axes[i].xaxis.set_tick_params(labelbottom=False)
+                # axes[i].yaxis.set_tick_params(labelleft=False)
 
             handles, labels = axes[-2].get_legend_handles_labels()
             axes[-1].legend(handles=handles, labels=labels, loc='center')
             axes[-1].set_xticks([])
             axes[-1].set_yticks([])
             axes[-1].set_frame_on(False)
-
-            plt.tight_layout(pad=-0.5, w_pad=-1, h_pad=-0.5)
+            
+            # plt.tight_layout(pad=-0.5, w_pad=-1, h_pad=-0.5)
             if save_name:
                 printing.savefig(fig, save_name)
             plt.show()
