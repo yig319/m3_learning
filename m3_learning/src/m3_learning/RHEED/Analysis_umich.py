@@ -86,7 +86,7 @@ def analyze_rheed_data(data, camera_freq, laser_freq,
     xs, ys = remove_linear_bg(xs, ys, linear_ratio=curve_params['linear_ratio'])
     
     if viz_params['viz_curves']:
-        xs_sample, ys_sample = xs[::1], ys[::1]
+        xs_sample, ys_sample = xs[::5], ys[::5]
         fig, axes = layout_fig(len(ys_sample), mod=6, figsize=(12,2*len(ys_sample)//6+1), layout='compressed')
         Viz.show_grid_plots(axes, xs_sample, ys_sample, labels=None, xlabel=None, ylabel=None, ylim=None, legend=None, color=None)
 
@@ -95,8 +95,8 @@ def analyze_rheed_data(data, camera_freq, laser_freq,
     [xs_all, ys_all, ys_fit_all, ys_nor_all, ys_nor_fit_all, ys_nor_fit_failed_all, labels_all, losses_all] = info
     
     if viz_params['viz_fittings']:
-        Viz.plot_fit_details(xs_all, ys_nor_all, ys_nor_fit_all, None, labels=labels_all, 
-                            mod=5, figsize=(12, 1.5*len(x_peaks)//4+1), style='presentation')
+        Viz.plot_fit_details(xs_all[::5], ys_nor_all[::5], ys_nor_fit_all[::5], None, labels=labels_all[::5], 
+                            mod=5, figsize=(12, 1.5*len(x_peaks[::5])//4+1), style='presentation')
         
     # remove outliers
     n_std = normalize_params['n_std']

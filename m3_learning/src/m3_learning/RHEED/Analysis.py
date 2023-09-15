@@ -31,6 +31,8 @@ def detect_peaks(curve_x, curve_y, camera_freq, laser_freq, curve_params):
 
     dist = int(camera_freq/laser_freq*0.6)
     step = np.hstack((np.ones(convolve_step), -1*np.ones(convolve_step)))
+
+    # print(curve_y[0].shape, curve_y[1].shape)
     dary_step = np.convolve(curve_y, step, mode=mode)
     dary_step = np.abs(dary_step)
 
@@ -80,73 +82,6 @@ def smooth(y, box_pts):
     y_smooth = np.convolve(y, box, mode='same')
     return y_smooth
 
-def normalize_0_1(y, I_start, I_end, I_diff=None, unify=True):
-    """
-        Normalizes the given data to the range [0, 1] based on the provided intensity values.
-
-    Args:
-        y (numpy.array): The input data.
-        I_start (float): The start intensity value.
-        I_end (float): The end intensity value.
-        I_diff (float, optional): The intensity difference used for normalization. Defaults to None.
-        unify (bool, optional): Whether to unify the normalization range regardless of the intensity order. Defaults to True.
-
-    Returns:
-        numpy.array: The normalized data.
-    """
-    if not I_diff:
-        I_diff = I_end-I_start
-    
-    # use I/I0, I0 is saturation intensity (last value) and scale to 0-1 based 
-    if I_end - I_start == 0: # avoid devide by 0
-        y_nor = (y-I_start)
-    elif unify:
-        if I_end < I_start:
-            y_nor = (y-I_start)/I_diff
-        else:
-            y_nor = (I_start-y)/I_diff
-    else:
-        if I_end < I_start:
-            y_nor = (y-I_end)/I_diff
-        else:
-            y_nor = (y-I_start)/I_diff
-    return y_nor
-
-def de_normalize_0_1(y_nor_fit, I_start, I_end, I_diff=None, unify=True):
-    """
-    De-normalizes the given normalized data back to the original range based on the provided intensity values.
-
-    Args:
-        y_nor_fit (numpy.array): The normalized data to be de-normalized.
-        I_start (float): The start intensity value.
-        I_end (float): The end intensity value.
-        I_diff (float, optional): The intensity difference used for normalization. Defaults to None.
-        unify (bool, optional): Whether to unify the normalization range regardless of the intensity order. Defaults to True.
-
-    Returns:
-        numpy.array: The de-normalized data.
-    """
-    if not I_diff:
-        I_diff = I_end-I_start
-    if not unify:
-        I_diff = np.abs(I_diff)
-    
-    # use I/I0, I0 is saturation intensity (last value) and scale to 0-1 based 
-    if I_end - I_start == 0: # avoid devide by 0
-        y_nor = (y-I_start)
-    elif unify:
-        if I_end < I_start:
-            y_fit = I_start-y_nor_fit*I_diff
-        else:
-            y_fit = y_nor_fit*I_diff+I_start
-
-    else:
-        if I_end < I_start:
-            y_fit = y_nor_fit*I_diff+I_end
-        else:
-            y_fit = y_nor_fit*I_diff+I_start
-    return y_fit
-    
 
 def denoise_fft(sample_x, sample_y, cutoff_freq, denoise_order, sample_frequency, viz=False):
 
@@ -177,11 +112,13 @@ def denoise_fft(sample_x, sample_y, cutoff_freq, denoise_order, sample_frequency
         plt.tight_layout()
         plt.title('fft filter')
         plt.show()
-    return sample_x, denoised_sample_y
+    return denoised_sample_y
 
 from scipy.signal import medfilt
 def denoise_median(sample_x, sample_y, kernel_size, viz=False):
     denoised_sample_y = medfilt(sample_y, kernel_size=kernel_size)
+    # print(denoised_sample_y.shape, sample_y.shape)
+
     if viz:
         plt.figure(figsize=(8,2))
         plt.scatter(sample_x, sample_y, label='Original Signal')
@@ -221,6 +158,7 @@ def process_rheed_data(sample_x, sample_y, camera_freq, denoise_params, viz=Fals
             plt.tight_layout()
             plt.title('savgol_filter')
             plt.show()
+        sample_y = denoised_sample_y
 
     # # apply PCA
     # if pca_component:
@@ -240,10 +178,12 @@ def process_rheed_data(sample_x, sample_y, camera_freq, denoise_params, viz=Fals
         sample_y = denoised_sample_y 
         denoised_sample_y = denoise_fft(sample_x, sample_y, cutoff_freq=20, denoise_order=1, 
                                         sample_frequency=camera_freq, viz=viz)
+        sample_y = denoised_sample_y
     
     # median filter
     if not isinstance(median_kernel_size, type(None)):
-        sample_y = denoise_median(sample_x, sample_y, kernel_size=median_kernel_size, viz=viz)
+        sample_x, sample_y = denoise_median(sample_x, sample_y, kernel_size=median_kernel_size, viz=viz)
+        sample_y = denoised_sample_y
 
     return sample_x, sample_y
 
@@ -350,6 +290,75 @@ def process_curves(xs, ys, curve_params):
 #     return xs_processed, ys_processed
 
 
+def normalize_0_1(y, I_start, I_end, I_diff=None, unify=True):
+    """
+        Normalizes the given data to the range [0, 1] based on the provided intensity values.
+
+    Args:
+        y (numpy.array): The input data.
+        I_start (float): The start intensity value.
+        I_end (float): The end intensity value.
+        I_diff (float, optional): The intensity difference used for normalization. Defaults to None.
+        unify (bool, optional): Whether to unify the normalization range regardless of the intensity order. Defaults to True.
+
+    Returns:
+        numpy.array: The normalized data.
+    """
+    if not I_diff:
+        I_diff = I_end-I_start
+    
+    # use I/I0, I0 is saturation intensity (last value) and scale to 0-1 based 
+    if I_end - I_start == 0: # avoid devide by 0
+        y_nor = (y-I_start)
+    elif unify:
+        y_nor = (y-I_start)/I_diff
+        # if I_end < I_start:
+        #     y_nor = (y-I_start)/I_diff
+        # else:
+        #     y_nor = (y-I_start)/I_diff
+    else:
+        if I_end < I_start:
+            y_nor = (y-I_end)/I_diff
+        else:
+            y_nor = (y-I_start)/I_diff
+    return y_nor
+
+def de_normalize_0_1(y_nor_fit, I_start, I_end, I_diff=None, unify=True):
+    """
+    De-normalizes the given normalized data back to the original range based on the provided intensity values.
+
+    Args:
+        y_nor_fit (numpy.array): The normalized data to be de-normalized.
+        I_start (float): The start intensity value.
+        I_end (float): The end intensity value.
+        I_diff (float, optional): The intensity difference used for normalization. Defaults to None.
+        unify (bool, optional): Whether to unify the normalization range regardless of the intensity order. Defaults to True.
+
+    Returns:
+        numpy.array: The de-normalized data.
+    """
+    if not I_diff:
+        I_diff = I_end-I_start
+    if not unify:
+        I_diff = np.abs(I_diff)
+    
+    # use I/I0, I0 is saturation intensity (last value) and scale to 0-1 based 
+    if I_end - I_start == 0: # avoid devide by 0
+        y_nor = (y-I_start)
+    elif unify:
+        if I_end < I_start:
+            y_fit = I_start-y_nor_fit*I_diff
+        else:
+            y_fit = y_nor_fit*I_diff+I_start
+
+    else:
+        if I_end < I_start:
+            y_fit = y_nor_fit*I_diff+I_end
+        else:
+            y_fit = y_nor_fit*I_diff+I_start
+    return y_fit
+    
+
 def fit_exp_function(xs, ys, growth_name,
         fit_settings = {'I_diff': None, 'unify':True, 'bounds':[0.01, 1], 'p_init':(1, 0.1, 0.4), 'n_std':1}):
     """Fits a""n exponential function to the given data.
@@ -381,7 +390,7 @@ def fit_exp_function(xs, ys, growth_name,
     p_init = fit_settings['p_init']
     unify = fit_settings['unify']
 
-    print(unify)
+    # print(unify)
     parameters = []
     ys_nor, ys_nor_fit, ys_nor_fit_failed, ys_fit = [], [], [], []
     labels, losses = [], []
@@ -395,6 +404,8 @@ def fit_exp_function(xs, ys, growth_name,
         I_start = np.mean(ys[i][:n_avg])
         y_nor = normalize_0_1(ys[i], I_start, I_end, I_diff, unify)
         
+        # print(I_start, I_end)
+
         if unify:
             params, params_covariance = curve_fit(exp_func_inc, x, y_nor, p0=p_init, bounds=bounds, absolute_sigma=False) 
             a, b, relax = params
