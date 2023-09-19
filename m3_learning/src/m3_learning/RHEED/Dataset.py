@@ -170,6 +170,18 @@ class RHEED_spot_Dataset:
                 except:
                     print(f"Growth: {g}")
 
+    @property
+    def dataset_names(self):
+        """
+        Return dataset names.
+
+        This method reads the dataset file and return the names of dataset.
+        """
+        ...
+        with h5py.File(self.path, mode='r') as h5:
+            datasets = list(h5.keys())
+        return datasets
+    
     def growth_dataset_length(self, growth):
         with h5py.File(self.path, mode='r') as h5:
             return len(h5[growth])
