@@ -384,7 +384,6 @@ def fit_exp_function(xs, ys, growth_name,
     def exp_func_dec(x, a2, b2, relax2):
         return (a2*x+b2)*np.exp(-x/relax2)
   
-
     I_diff = fit_settings['I_diff']
     bounds = fit_settings['bounds']
     p_init = fit_settings['p_init']
@@ -407,7 +406,11 @@ def fit_exp_function(xs, ys, growth_name,
         # print(I_start, I_end)
 
         if unify:
-            params, params_covariance = curve_fit(exp_func_inc, x, y_nor, p0=p_init, bounds=bounds, absolute_sigma=False) 
+            if isinstance(bounds, type(None)) and isinstance(p_init, type(None)):
+                params, params_covariance = curve_fit(exp_func_inc, x, y_nor, absolute_sigma=False) 
+            else:
+                params, params_covariance = curve_fit(exp_func_inc, x, y_nor, p0=p_init, bounds=bounds, absolute_sigma=False) 
+
             a, b, relax = params
             y_nor_fit = exp_func_inc(x, a, b, relax)
             labels.append(f'{growth_name}-index {i+1}:\ny=({np.round(a, 2)}t+{np.round(b, 2)})*(1-exp(-t/{np.round(relax, 2)}))')
