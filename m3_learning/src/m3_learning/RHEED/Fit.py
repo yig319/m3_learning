@@ -443,7 +443,8 @@ class RHEED_image_processer:
                             width_x[i:i_end] = parameters[:, 9]
                             width_y[i:i_end] = parameters[:, 10]
                             
-                    else:                                  
+                    else:
+                        print(f'    {0} - {total_length} ...')
                         inputs = self.normalize_and_crop_inputs(self.spot_ds.growth_dataset(growth), spot)
                         results = self.fit_batch(inputs, num_workers)
 
