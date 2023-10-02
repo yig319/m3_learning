@@ -566,3 +566,15 @@ class RHEED_parameter_dataset():
             sample_name (str): The new name for the sample.
         """
         self._sample_name = sample_name
+
+    @property
+    def dataset_names(self):
+        """
+        Return dataset names.
+
+        This method reads the dataset file and return the names of dataset.
+        """
+        ...
+        with h5py.File(self.path, mode='r') as h5:
+            datasets = list(h5.keys())
+        return datasets

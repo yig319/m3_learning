@@ -159,8 +159,8 @@ def plot_activation_energy(temp_list, tau_list, save_path=None):
 
     text = f'Ea={round(m*-8.617e-5, 2)}eV, b={b}'
     bbox_props = dict(boxstyle="round,pad=0.3", edgecolor="white", facecolor="white")
-    axes[1].text(0.25, 0.1, text, transform=axes[1].transAxes, fontsize=10, verticalalignment="center", horizontalalignment="center", bbox=bbox_props)
-
+    # axes[1].text(0.25, 0.1, text, transform=axes[1].transAxes, fontsize=10, verticalalignment="center", horizontalalignment="center", bbox=bbox_props)
+    plt.title(text)
     if save_path is not None:
         plt.savefig(save_path, dpi=300)
     plt.show()
