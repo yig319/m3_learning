@@ -597,11 +597,11 @@ def write_csv(write_CSV,
 class Multiscale1DFitter(nn.Module):
     
     def __init__(self, 
-                function, # function to fit
+                 function, # function to fit
                  x_data, # x_data to generate
                  input_channels, # number of input channels
                  num_params, # number of parameters to fit
-                 scaler=None, # scaler object
+                 scaler = None, # scaler object
                  post_processing = None, 
                  device = "cuda",
                  **kwargs):
@@ -672,9 +672,13 @@ class Multiscale1DFitter(nn.Module):
         )
 
     def forward(self, x, n=-1):
+        # print(x.dtype)
+        # print('1', self.x_data.shape, x.shape)
         # output shape - samples, (real, imag), frequency
-        x = torch.swapaxes(x, 1, 2)
+        # x = torch.swapaxes(x, 1, 2)
         x = self.hidden_x1(x)
+        # print(x.dtype)
+
         xfc = torch.reshape(x, (n, 256))  # batch size, features
         xfc = self.hidden_xfc(xfc)
 
@@ -690,15 +694,21 @@ class Multiscale1DFitter(nn.Module):
             # corrects the scaling of the parameters
             unscaled_param = (
                 embedding *
-                torch.tensor(self.scaler.var_ ** 0.5).cuda()
-                + torch.tensor(self.scaler.mean_).cuda()
+                torch.tensor(self.scaler.var_ ** 0.5).to(self.device)
+                + torch.tensor(self.scaler.mean_).to(self.device)
             )
         else:
             unscaled_param = embedding
+        # print(unscaled_param.shape)
+        # unscaled_param[:,0] = torch.relu(unscaled_param[:,0])
+        unscaled_param[:,0] = torch.tanh(unscaled_param[:,0])
+        # unscaled_param[:,1] = torch.tanh(unscaled_param[:,2])
+        unscaled_param[:,1] = torch.relu(unscaled_param[:,1])+1e-3
 
         # frequency_bins = resample(self.dataset.frequency_bin,
         #                           self.dataset.resampled_bins)
-
+        
+        # print(unscaled_param.shape, self.x_data.shape)
         # passes to the pytorch fitting function
         fits = self.function(
             unscaled_param, self.x_data, device=self.device)
@@ -708,35 +718,16 @@ class Multiscale1DFitter(nn.Module):
             out = self.post_processing.compute(fits)
         else:
             out = fits
+        return out, unscaled_param
 
-        if self.training == True:
-            return out, unscaled_param
-        if self.training == False:
-            # this is a scaling that includes the corrections for shifts in the data
-            embeddings = (unscaled_param.cuda() - torch.tensor(self.scaler.mean_).cuda()
-                          )/torch.tensor(self.scaler.var_ ** 0.5).cuda()
-            return out, embeddings, unscaled_param
+        # if self.training == True:
+        #     return out, unscaled_param
+        # if self.training == False:
+        #     # this is a scaling that includes the corrections for shifts in the data
+        #     embeddings = (unscaled_param.to(self.device) - torch.tensor(self.scaler.mean_).to(self.device)
+        #                   )/torch.tensor(self.scaler.var_ ** 0.5).to(self.device)
+        #     return out, embeddings, unscaled_param
 
-
-class ComplexPostProcessor:
-    
-    def __init__(self, dataset):
-        self.dataset = dataset
-
-    def compute(self, fits):
-        # extract and return real and imaginary
-        real = torch.real(fits)
-        real_scaled = (real - torch.tensor(self.dataset.raw_data_scaler.real_scaler.mean).cuda()) / torch.tensor(
-            self.dataset.raw_data_scaler.real_scaler.std
-        ).cuda()
-        imag = torch.imag(fits)
-        imag_scaled = (imag - torch.tensor(self.dataset.raw_data_scaler.imag_scaler.mean).cuda()) / torch.tensor(
-            self.dataset.raw_data_scaler.imag_scaler.std
-        ).cuda()
-        out = torch.stack((real_scaled, imag_scaled), 2)
-        
-        return out
-    
 
 class Model(nn.Module):
 

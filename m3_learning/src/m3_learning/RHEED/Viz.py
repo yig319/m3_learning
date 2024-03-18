@@ -375,7 +375,7 @@ class Viz:
     #                          figsize=(16, subplot_height*len(ys)//img_per_row+1))  
     # def show_grid_plots(xs, ys, labels=None, ys_fit1=None, ys_fit2=None, img_per_row=4, subplot_height=3, ylim=None, legend=None):
     @staticmethod
-    def show_grid_plots(axes, xs, ys, ys_2=None, labels=None, xlabel=None, ylabel=None, ylim=None, legend=None, color=None):
+    def show_grid_plots(axes, xs, ys, ys_2=None, labels=None, xlabel=None, ylabel=None, title=None, ylim=None, legend=None, color=None):
         """
         Show a grid of plots.
 
@@ -408,6 +408,7 @@ class Viz:
             labelfigs(axes[i], i, loc='cb', size=6)
         else:
             labelfigs(axes[i], i, string_add=str(labels[i]), loc='cb', size=6)
+        if title: plt.suptitle(title)
         plt.show()
         
     @staticmethod

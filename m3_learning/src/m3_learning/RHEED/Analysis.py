@@ -200,6 +200,9 @@ def linear_func(x, a, b):
 
 from scipy.optimize import curve_fit
 def remove_linear_bg(xs, ys, linear_ratio=0.8):
+    '''
+    assume there is a background intensity change linearly with time, so extract the linear background from full range curve
+    '''
     for i in range(len(ys)):
         length = int(len(ys[i]) * linear_ratio)
         popt, pcov = curve_fit(linear_func, xs[i][-length:], ys[i][-length:])
@@ -208,10 +211,75 @@ def remove_linear_bg(xs, ys, linear_ratio=0.8):
         ys[i] = ys[i] - y_fit
     return xs, ys
 
+# def find_sign_change(values, change='increase_to_decrease'):
+#     '''
+#     change: 'increase_to_decrease' or 'decrease_to_increase'
+#     '''
+#     for i in range(len(values) - 2):
+#         if change == 'increase_to_decrease':
+#             # print(values[i], values[i + 1], values[i + 2])
+#             if values[i] < values[i + 1] and values[i + 1] > values[i + 2]:
+#                 return i + 1  # The position where it changes from increase to decrease
+#         elif change == 'decrease_to_increase':
+#             if values[i] > values[i + 1] and values[i + 1] < values[i + 2]:
+#                 return i + 1  # The position where it changes from decrease to increase
+#     return -1  # Return -1 if no such transition is found
+
+# def find_sign_change(values, rule='increase_to_decrease'):
+#     '''
+#     change: 'increase_to_decrease' or 'decrease_to_increase'
+#     '''
+#     for i in range(len(values) - 2):
+#         if rule == 'increase_to_decrease':
+#             # print(values[i], values[i + 1], values[i + 2])
+#             if values[i] < values[i + 1] and values[i + 1] > values[i + 2]:
+#                 return i + 1  # The position where it changes from increase to decrease
+#         elif rule == 'decrease_to_increase':
+#             if values[i] > values[i + 1] and values[i + 1] < values[i + 2]:
+#                 return i + 1  # The position where it changes from decrease to increase
+#     return -1  # Return -1 if no such transition is found
+
+# def remove_starting_signal(xs, ys):
+#     xs_new, ys_new = [], []
+#     for x_target, y_target in zip(xs, ys):
+#         x_pos = find_sign_change(y_target)
+#         xs.append(x_target[x_pos:])
+#         ys.append(y_target[x_pos:])
+#     return xs, ys
+
+def find_sign_change(values, rule='increase_to_decrease', window=20, threshold=16):
+
+    for i in range(window, len(values)-window):
+        increase_count, decrease_count = 0, 0
+        if rule == 'increase_to_decrease': 
+            for j in range(i-window, i):
+                # print(j, j+1)
+                if values[j] < values[j+1]:
+                    increase_count += 1
+            for j in range(i, i+window):
+                if values[j] > values[j+1]:
+                    decrease_count += 1
+            # print(increase_count, decrease_count)
+            if increase_count >= threshold and decrease_count >= threshold:
+                    return i
+        elif rule == 'decrease_to_increase': 
+            for j in range(i-window, i):
+                if values[j] > values[j+1]:
+                    decrease_count += 1
+            for j in range(i, i+window):
+                if values[j] < values[j+1]:
+                    increase_count += 1
+            if increase_count >= threshold and decrease_count >= threshold:
+                    return i
+        else:
+            # print('Cannot find trend change point.')
+            return -1
+        
 def process_curves(xs, ys, curve_params):
 
     tune_tail = curve_params['tune_tail']
     trim_first = curve_params['trim_first']
+    linear_ratio = curve_params['linear_ratio']
 
     # trim tails
     if tune_tail:
@@ -219,12 +287,17 @@ def process_curves(xs, ys, curve_params):
     if trim_first != 0:
         xs_trimed, ys_trimed = [], []
         for x, y in zip(xs, ys):
-            ys_trimed.append(y[trim_first:])
-            xs_trimed.append(np.linspace(x[0], x[-1], len(y[trim_first:])))
+            if isinstance(trim_first, str):
+                pos = find_sign_change(y, trim_first)
+            elif isinstance(trim_first, int):
+                pos = trim_first
+            ys_trimed.append(y[pos:])
+            xs_trimed.append(np.linspace(x[0], x[-1], len(y[pos:])))
         xs, ys = xs_trimed, ys_trimed
 
     # remove linear background
-    xs, ys = remove_linear_bg(xs, ys, linear_ratio=0.8)
+    if linear_ratio != 0:
+        xs, ys = remove_linear_bg(xs, ys, linear_ratio=linear_ratio)
     return xs, ys
 
 # def process_rheed_data(xs, ys, 
@@ -344,7 +417,7 @@ def de_normalize_0_1(y_nor_fit, I_start, I_end, I_diff=None, unify=True):
     
     # use I/I0, I0 is saturation intensity (last value) and scale to 0-1 based 
     if I_end - I_start == 0: # avoid devide by 0
-        y_nor = (y-I_start)
+        y_nor = (y_nor_fit-I_start)
     elif unify:
         if I_end < I_start:
             y_fit = I_start-y_nor_fit*I_diff

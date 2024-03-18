@@ -1,3 +1,4 @@
+
 import glob, re
 import numpy as np
 import matplotlib.pyplot as plt
@@ -65,9 +66,9 @@ def fit_curves(xs, ys, x_peaks, sample_x, normalize_params):
 
 def analyze_rheed_data(data, camera_freq, laser_freq, 
         denoise_params = {'savgol_window_order': (51,3), 'pca_component': None, 'fft_cutoff_order':(20, 1), 'median_kernel_size':51},
-        curve_params = {'trim_first':0, 'tune_tail':True, 'convolve_step':5, 'prominence':0.8, 'mode':'full', 'linear_ratio':0.8},
+        curve_params = {'trim_first':0, 'tune_tail':False, 'linear_ratio':0.8, 'convolve_step':5, 'prominence':0.8, 'mode':'full'},
         normalize_params = {'I_diff': None, 'unify':True, 'bounds':[0.01, 1], 'p_init':(1, 0.1, 0.4), 'n_std':1},
-        viz_params = {'viz_denoise': True, 'viz_curves': False, 'viz_fittings': False, 'viz_ab': False}):
+        viz_params = {'viz_denoise': True, 'viz_curves': False, 'viz_fittings': False, 'viz_ab': False, 'viz_tau': False}):
 
     if isinstance(data, str):
         data = np.loadtxt(data)
@@ -79,25 +80,30 @@ def analyze_rheed_data(data, camera_freq, laser_freq,
     # detect peaks
     x_peaks, xs, ys = detect_peaks(sample_x, sample_y, camera_freq=camera_freq, laser_freq=laser_freq, curve_params=curve_params)
 
+    if viz_params['viz_raw_curves']:
+        xs_sample, ys_sample = xs[::viz_params['per_plot']], ys[::viz_params['per_plot']]
+        fig, axes = layout_fig(len(ys_sample), mod=6, figsize=(12,2*len(ys_sample)//6+1), layout='compressed')
+        Viz.show_grid_plots(axes, xs_sample, ys_sample, labels=None, xlabel=None, ylabel=None, title='raw curves', ylim=None, legend=None, color=None)
+
     # denoise
     xs, ys = process_curves(xs, ys, curve_params)        
 
     # remove linear background
     xs, ys = remove_linear_bg(xs, ys, linear_ratio=curve_params['linear_ratio'])
     
-    if viz_params['viz_curves']:
-        xs_sample, ys_sample = xs[::5], ys[::5]
+    if viz_params['viz_processed_curves']:
+        xs_sample, ys_sample = xs[::viz_params['per_plot']], ys[::viz_params['per_plot']]
         fig, axes = layout_fig(len(ys_sample), mod=6, figsize=(12,2*len(ys_sample)//6+1), layout='compressed')
-        Viz.show_grid_plots(axes, xs_sample, ys_sample, labels=None, xlabel=None, ylabel=None, ylim=None, legend=None, color=None)
+        Viz.show_grid_plots(axes, xs_sample, ys_sample, labels=None, xlabel=None, ylabel=None, title='raw curves', ylim=None, legend=None, color=None)
 
     # fit exponential function
     parameters_all, x_list_all, info = fit_curves(xs, ys, x_peaks, sample_x, normalize_params)
     [xs_all, ys_all, ys_fit_all, ys_nor_all, ys_nor_fit_all, ys_nor_fit_failed_all, labels_all, losses_all] = info
     
     if viz_params['viz_fittings']:
-        Viz.plot_fit_details(xs_all[::5], ys_nor_all[::5], ys_nor_fit_all[::5], None, labels=labels_all[::5], 
-                            mod=5, figsize=(12, 1.5*len(x_peaks[::5])//4+1), style='presentation')
-        
+        Viz.plot_fit_details(xs_all[::viz_params['per_plot']], ys_nor_all[::viz_params['per_plot']], ys_nor_fit_all[::viz_params['per_plot']], None, labels=labels_all[::viz_params['per_plot']], 
+                            mod=5, figsize=(12, 0.5*len(x_peaks[::5])//4+1), style='presentation')
+
     # remove outliers
     n_std = normalize_params['n_std']
     x_list_all = np.array(x_list_all) + sample_x[0]
@@ -118,28 +124,27 @@ def analyze_rheed_data(data, camera_freq, laser_freq,
         Viz.plot_curve(axes[3], x_clean, tau, plot_type='lineplot', xlabel='Time (s)', ylabel='Characteristic Time (s)')
         plt.show()
 
-    fig, ax1 = plt.subplots(1, 1, figsize=(8, 2.5), layout='compressed')
-    ax1.scatter(sample_x, sample_y, color='k', s=1)
-    Viz.set_labels(ax1, xlabel='Time (s)', ylabel='Intensity (a.u.)', ticks_both_sides=False)
+    if viz_params['viz_tau']:
+        fig, ax1 = plt.subplots(1, 1, figsize=(8, 2.5), layout='compressed')
+        ax1.scatter(sample_x, sample_y, color='k', s=1)
+        Viz.set_labels(ax1, xlabel='Time (s)', ylabel='Intensity (a.u.)', ticks_both_sides=False)
 
-    ax2 = ax1.twinx()
-    ax2.scatter(x_clean, tau, color=seq_colors[0], s=3)
-    ax2.plot(x_clean,  tau, color='#bc5090', markersize=3)
-    Viz.set_labels(ax2, ylabel='Characteristic Time (s)', yaxis_style='lineplot', ticks_both_sides=False)
-    ax2.tick_params(axis="y", color='k', labelcolor=seq_colors[0])
-    ax2.set_ylabel('Characteristic Time (s)', color=seq_colors[0])
-    plt.title('mean of tau: '+str(np.mean(tau)))
-    plt.show()
+        ax2 = ax1.twinx()
+        ax2.scatter(x_clean, tau, color=seq_colors[0], s=3)
+        ax2.plot(x_clean,  tau, color='#bc5090', markersize=3)
+        Viz.set_labels(ax2, ylabel='Characteristic Time (s)', yaxis_style='lineplot', ticks_both_sides=False)
+        ax2.tick_params(axis="y", color='k', labelcolor=seq_colors[0])
+        ax2.set_ylabel('Characteristic Time (s)', color=seq_colors[0])
+        plt.title(f'mean of tau: {str(np.mean(tau)):.2f}')
+        plt.show()
     return parameters_all, x_list_all, info, tau
 
 
-def plot_activation_energy(temp_list, tau_list, save_path=None):
+def plot_activation_energy(temp_list, tau_list, fit=False, title=None, save_path=None):
     tau_mean_list = [np.mean(t_list) for t_list in tau_list]
-
     fig, axes = plt.subplots(1, 2, figsize=(8,2.5))
 
     tau_mean = np.array(tau_mean_list)
-
     axes[0].scatter(temp_list, tau_mean, color='k', s=10)
     axes[0].set_xlabel('T (C)')
     axes[0].set_ylabel('tau (s)')
@@ -148,19 +153,22 @@ def plot_activation_energy(temp_list, tau_list, save_path=None):
     T = np.array(temp_list) + 273
     x = 1/(T)
     y = -np.log(tau_mean)
-    m, b = np.polyfit(x, y, 1)
-
     axes[1].scatter(x, y, color='k', s=10)
-    axes[1].plot(x, y, 'yo', x, m*x+b, '--k')
-    axes[1].set_xlabel('1/T (1/K))')
-    axes[1].set_ylabel(r'-ln($\tau$)')
-    # axes[1].set_title('Ea=' + str(round(m*-8.617e-5, 2)) + ' eV')
-    # axes[1].set_ylim(1.8,2.5)
 
-    text = f'Ea={round(m*-8.617e-5, 2)}eV, b={b}'
-    bbox_props = dict(boxstyle="round,pad=0.3", edgecolor="white", facecolor="white")
-    # axes[1].text(0.25, 0.1, text, transform=axes[1].transAxes, fontsize=10, verticalalignment="center", horizontalalignment="center", bbox=bbox_props)
-    plt.title(text)
+    if fit:
+        m, b = np.polyfit(x, y, 1)
+        axes[1].plot(x, y, 'yo', x, m*x+b, '--k')
+        axes[1].set_xlabel('1/T (1/K))')
+        axes[1].set_ylabel(r'-ln($\tau$)')
+        # axes[1].set_title('Ea=' + str(round(m*-8.617e-5, 2)) + ' eV')
+        # axes[1].set_ylim(1.8,2.5)
+
+        text = f'Ea={round(m*-8.617e-5, 2)}eV, b={b}'
+        bbox_props = dict(boxstyle="round,pad=0.3", edgecolor="white", facecolor="white")
+        # axes[1].text(0.25, 0.1, text, transform=axes[1].transAxes, fontsize=10, verticalalignment="center", horizontalalignment="center", bbox=bbox_props)
+    
+    if title:
+        plt.suptitle(title)
     if save_path is not None:
-        plt.savefig(save_path, dpi=300)
+        plt.savefig(save_path, dpi=300) 
     plt.show()
