@@ -565,8 +565,9 @@ def analyze_curves(dataset, growth_dict, spot, metric, interval=1000, fit_settin
         # sample_x, sample_y = load_curve(h5_para_file, growth_name, 'spot_2', 'img_intensity', camera_freq=500, x_start=0)
 
         # detect peaks
+        curve_params = {'convolve_step':fit_settings['convolve_step'], 'prominence':fit_settings['prominence'], 'mode':'full'}
         x_peaks, xs, ys = detect_peaks(sample_x, sample_y, camera_freq=dataset.camera_freq, 
-                                       laser_freq=growth_dict[growth], step_size=fit_settings['step_size'], prominence=fit_settings['prominence'])
+                                       laser_freq=growth_dict[growth], curve_params=curve_params)
         
         xs, ys = process_rheed_data(xs, ys, length=fit_settings['length'], savgol_window_order=fit_settings['savgol_window_order'], 
                                     pca_component=fit_settings['pca_component'])        

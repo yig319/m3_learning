@@ -9,7 +9,7 @@ from m3_learning.viz.layout import layout_fig, labelfigs
 from m3_learning.RHEED.Viz import Viz
 from m3_learning.RHEED.Analysis import analyze_curves, remove_outlier, smooth
 
-def decay_curve_examples(df_para, spot, metric, fit_settings):
+def decay_curve_examples(df_para, spot, metric, fit_settings, savefig=False, savepath=None):
     """
     Plot decay curve examples.
 
@@ -38,6 +38,9 @@ def decay_curve_examples(df_para, spot, metric, fit_settings):
         ax.set_box_aspect(1)
         Viz.set_labels(ax, xlabel='Time (s)', ylabel='Intensity (a.u.)', yaxis_style='linear')
         labelfigs(ax, None, string_add=labels_all[sample_list[i]], loc=loc_list[i], style='b', size=6)
+    if savefig:
+        plt.savefig(f'{savepath}-decay_curve_examples.png', dpi=300)
+        plt.savefig(f'{savepath}-decay_curve_examples.svg', dpi=300)
         
 
 

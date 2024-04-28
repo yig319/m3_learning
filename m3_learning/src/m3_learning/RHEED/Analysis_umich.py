@@ -102,7 +102,7 @@ def analyze_rheed_data(data, camera_freq, laser_freq,
     
     if viz_params['viz_fittings']:
         Viz.plot_fit_details(xs_all[::viz_params['per_plot']], ys_nor_all[::viz_params['per_plot']], ys_nor_fit_all[::viz_params['per_plot']], None, labels=labels_all[::viz_params['per_plot']], 
-                            mod=5, figsize=(12, 0.5*len(x_peaks[::5])//4+1), style='presentation')
+                            mod=5, figsize=(12, 0.8*len(x_peaks[::5])//4+1), style='presentation')
 
     # remove outliers
     n_std = normalize_params['n_std']
@@ -135,7 +135,7 @@ def analyze_rheed_data(data, camera_freq, laser_freq,
         Viz.set_labels(ax2, ylabel='Characteristic Time (s)', yaxis_style='lineplot', ticks_both_sides=False)
         ax2.tick_params(axis="y", color='k', labelcolor=seq_colors[0])
         ax2.set_ylabel('Characteristic Time (s)', color=seq_colors[0])
-        plt.title(f'mean of tau: {str(np.mean(tau)):.2f}')
+        plt.title(f'mean of tau: {np.mean(tau):.2f}')
         plt.show()
     return parameters_all, x_list_all, info, tau
 
