@@ -4,7 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from m3_learning.viz.layout import layout_fig
 from m3_learning.RHEED.Viz import Viz
-from m3_learning.RHEED.Analysis import detect_peaks, process_rheed_data , fit_exp_function, process_curves, remove_linear_bg
+from m3_learning.RHEED.Analysis import detect_peaks, process_rheed_data, process_curves, remove_linear_bg
+from m3_learning.RHEED.Fitting import fit_exp_function
 seq_colors = ['#00429d','#2e59a8','#4771b2','#5d8abd','#73a2c6','#8abccf','#a5d5d8','#c5eddf','#ffffe0']
 import numpy as np
 import matplotlib.pyplot as plt
@@ -20,9 +21,9 @@ def read_txt_to_numpy(filename):
     return header, data
 
 
-def select_range(data, start, end):
+def select_range(data, start, end, y_col=1):
     x = data[:,0]
-    y = data[:,1]
+    y = data[:, y_col]
     x_selected = x[(x>start) & (x<end)]
     y_selected = y[(x>start) & (x<end)]
     data = np.stack([x_selected, y_selected], 1)
@@ -65,7 +66,7 @@ def fit_curves(xs, ys, x_peaks, sample_x, normalize_params):
 
 
 def analyze_rheed_data(data, camera_freq, laser_freq, 
-        denoise_params = {'savgol_window_order': (51,3), 'pca_component': None, 'fft_cutoff_order':(20, 1), 'median_kernel_size':51},
+        denoise_params = {'savgol_window_order': (51,3), 'pca_component': None, 'fft_cutoff':(2, 10), 'fft_order':3, 'median_kernel_size':51},
         curve_params = {'trim_first':0, 'tune_tail':False, 'linear_ratio':0.8, 'convolve_step':5, 'prominence':0.8, 'mode':'full'},
         normalize_params = {'I_diff': None, 'unify':True, 'bounds':[0.01, 1], 'p_init':(1, 0.1, 0.4), 'n_std':1},
         viz_params = {'viz_denoise': True, 'viz_curves': False, 'viz_fittings': False, 'viz_ab': False, 'viz_tau': False}):
@@ -94,7 +95,7 @@ def analyze_rheed_data(data, camera_freq, laser_freq,
     if viz_params['viz_processed_curves']:
         xs_sample, ys_sample = xs[::viz_params['per_plot']], ys[::viz_params['per_plot']]
         fig, axes = layout_fig(len(ys_sample), mod=6, figsize=(12,2*len(ys_sample)//6+1), layout='compressed')
-        Viz.show_grid_plots(axes, xs_sample, ys_sample, labels=None, xlabel=None, ylabel=None, title='raw curves', ylim=None, legend=None, color=None)
+        Viz.show_grid_plots(axes, xs_sample, ys_sample, labels=None, xlabel=None, ylabel=None, title='processed curves', ylim=None, legend=None, color=None)
 
     # fit exponential function
     parameters_all, x_list_all, info = fit_curves(xs, ys, x_peaks, sample_x, normalize_params)
@@ -102,7 +103,7 @@ def analyze_rheed_data(data, camera_freq, laser_freq,
     
     if viz_params['viz_fittings']:
         Viz.plot_fit_details(xs_all[::viz_params['per_plot']], ys_nor_all[::viz_params['per_plot']], ys_nor_fit_all[::viz_params['per_plot']], None, labels=labels_all[::viz_params['per_plot']], 
-                            mod=5, figsize=(12, 0.8*len(x_peaks[::5])//4+1), style='presentation')
+                            mod=5, figsize=(12, 2*len(x_peaks[::viz_params['per_plot']])//4+1), style='presentation')
 
     # remove outliers
     n_std = normalize_params['n_std']
