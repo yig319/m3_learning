@@ -242,6 +242,63 @@ class afm_substrate():
         print(f"Miscut = {np.mean(miscut):.3f}° +- {np.std(miscut):.3f}°")
         return substrate_properties
 
+
+def flexible_round(value, sig_digits=1):
+    """
+    Rounds a number flexibly based on its magnitude to retain significant digits.
+    
+    Parameters:
+    value : float
+        The number to round.
+    sig_digits : int, optional
+        The number of significant digits to retain (default is 1).
+    
+    Returns:
+    str : The rounded number in scientific notation.
+    """
+    # Calculate the order of magnitude (e.g., -9 for 1.000001e-9)
+    if value == 0:
+        return value
+    
+    magnitude = np.floor(np.log10(abs(value)))
+    factor = 10 ** magnitude
+    
+    # Round the value to the specified number of significant digits
+    rounded_value = round(value / factor, sig_digits) * factor
+    
+    return rounded_value
+
+    
+def format_func(value, tick_number=None):
+    """
+    Format the colorbar ticks to only display numeric values without units.
+    Dynamically adjust the scale of values based on magnitude.
+    """
+    value = flexible_round(value)
+    
+    # Format based on magnitude without units
+    if abs(value) >= 1:
+        return f'{value:.1e}'
+    elif 1e-3 <= abs(value) < 1:
+        scaled_value = value * 1e3
+        return f'{scaled_value:.1f}' if scaled_value % 1 != 0 else f'{int(scaled_value)}'
+    elif 0.1e-6 <= abs(value) < 0.1e-3:
+        scaled_value = value * 1e6
+        return f'{scaled_value:.1f}' if scaled_value % 1 != 0 else f'{int(scaled_value)}'
+    elif 0.1e-9 <= abs(value) < 1e-6:
+        scaled_value = value * 1e9
+        return f'{scaled_value:.1f}' if scaled_value % 1 != 0 else f'{int(scaled_value)}'
+    elif 0.1e-12 <= abs(value) < 0.1e-9:
+        scaled_value = value * 1e12
+        return f'{scaled_value:.1f}' if scaled_value % 1 != 0 else f'{int(scaled_value)}'
+    elif 0.1e-15 <= abs(value) < 0.1e-12:
+        scaled_value = value * 1e15
+        return f'{scaled_value:.1f}' if scaled_value % 1 != 0 else f'{int(scaled_value)}'
+    else:
+        return f'{value:.1f}' if value % 1 != 0 else f'{int(value)}'
+
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
 def visualize_afm_image(img, colorbar_range, figsize=(6,4), scalebar_dict=None, filename=None, printing=None, **kwargs):
     '''
     Visualize AFM image with scalebar and colorbar.
@@ -265,8 +322,21 @@ def visualize_afm_image(img, colorbar_range, figsize=(6,4), scalebar_dict=None, 
     if isinstance(colorbar_range, tuple) or isinstance(colorbar_range, list):
         im.set_clim(colorbar_range) 
         
-    fig.colorbar(im, ax=ax)
-    
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.1)
+    formatter = plt.FuncFormatter(format_func)
+    colorbar = fig.colorbar(im, cax=cax, format=formatter)    
+    # fig.colorbar(im, ax=ax)
+        
+    # Adjust tick padding
+    colorbar.ax.yaxis.set_tick_params(pad=1, labelsize=int(figsize[1]*1.8), direction='in', length=int(2/3*figsize[1]))  # Adjust spacing between ticks and labels
+    # colorbar.ax.yaxis.set_tick_params(labelsize=7, right=False)  # Adjust spacing between ticks and labels
+    # colorbar.ax.tick_params(direction='in', width=1)
+
+    # Set unit label at the top of the colorbar
+    cax.set_title('nm', loc='center', pad=1, fontsize=int(figsize[1]*1.8))  # Adjust fontsize as needed
+            
+            
     ax.tick_params(which='both', bottom=False, left=False, right=False, top=False, labelbottom=False)
     ax.axes.xaxis.set_ticklabels([])
     ax.axes.yaxis.set_ticklabels([])

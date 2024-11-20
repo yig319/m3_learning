@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 from scipy.signal import butter, lfilter, sosfilt, freqz
 from scipy import optimize
 from joblib import Parallel, delayed
-import sys
 from m3_learning.viz.layout import layout_fig, labelfigs, imagemap
 from m3_learning.RHEED.Viz import Viz
 
@@ -325,7 +324,7 @@ class RHEED_image_processer:
         Initializes the RHEED_image_processer class.
 
         Args:
-            spot_ds: Object. The spot dataset. spots_names: ['spot_1', 'spot_2', 'spot_3']
+            spot_ds: Object. The spot dataset. spots_names: ['spot_1', 'spot_2', 'spot_3', 'background', ...]
             crop_dict: dict. The dictionary containing crop information for different spots.
             fit_function: function. The function to fit the Gaussian parameters.
 
@@ -334,7 +333,37 @@ class RHEED_image_processer:
         self.crop_dict = crop_dict
         self.fit_function = fit_function
 
-    def write_h5_file(self, parameters_file_path, growth_list, replace=False, num_workers=1):
+    def preview_metric(self, growth, spot, metric, camera_freq, viz=False, process_chunk_size=50000):
+        if metric not in ['max', 'sum', 'mean']:
+            print(f'can"t preview {metric}, requires to do gaussian fit')
+            return 
+        metric_in_time = []
+        total_length = self.spot_ds.growth_dataset_length(growth)
+        for i in range(0, total_length, process_chunk_size):
+            i_end = np.min((total_length, i+process_chunk_size))
+            print(f'{i} - {i_end} ...')
+
+            chunk = self.spot_ds.growth_dataset(growth, index=list(range(i,i_end)))
+            inputs = self.normalize_and_crop_inputs(chunk, spot)
+
+            if metric == 'max':
+                metric_in_time.append(np.max(inputs, axis=(1,2)))
+            if metric == 'sum':
+                metric_in_time.append(np.sum(inputs, axis=(1,2)))
+            if metric == 'mean':
+                metric_in_time.append(np.mean(inputs, axis=(1,2)))
+        metric_in_time = np.concatenate(metric_in_time)
+        time = np.linspace(0, len(metric_in_time)/camera_freq, len(metric_in_time))
+                
+        if viz:
+            fig, axes = plt.subplots(1, 1, figsize = (6, 2))
+            plt.scatter(x=time, y=metric_in_time)
+            plt.show()
+                
+        return metric_in_time
+        
+                    
+    def write_h5_file(self, parameters_file_path, growth_list, replace=False, num_workers=1, process_chunk_size=50000):
 
         """
         Writes the parameters of RHEED images to an HDF5 file.
@@ -355,31 +384,89 @@ class RHEED_image_processer:
                 print('Replace with new file.')
         with h5py.File(parameters_file_path, mode='a') as h5_para:
             for growth in growth_list:
+                print(f'{growth}:')
                 h5_growth = h5_para.create_group(growth)
+                
                 for spot in spots_names:
-                    inputs = self.normalize_inputs(self.spot_ds.growth_dataset(growth), spot)
-                    results = self.fit_batch(inputs, num_workers)
+                    print(f'  {spot} generation started:')
+                    
+                    total_length = self.spot_ds.growth_dataset_length(growth)
+                    if total_length > process_chunk_size:
+                        h5_spot = h5_growth.create_group(spot)
+                        
+                        # make some samples
+                        samples = self.spot_ds.growth_dataset(growth, index=list(range(10)))
+                        inputs = self.normalize_and_crop_inputs(samples, spot)
+                        results = self.fit_batch(inputs, num_workers=1)
+                        img_all = np.array([res[0] for res in results])
+                        img_rec_all = np.array([res[1] for res in results])
+                        parameters = np.array([res[2] for res in results])
+                        
+                        raw_image = h5_spot.create_dataset('raw_image', shape=(total_length, *img_all.shape[1:]), dtype=img_all.dtype)
+                        reconstructed_image = h5_spot.create_dataset('reconstructed_image', shape=(total_length, *img_rec_all.shape[1:]), dtype=img_all.dtype)
+                        img_sum = h5_spot.create_dataset('img_sum', shape=(total_length, ), dtype=parameters[:, 0].dtype)
+                        img_max = h5_spot.create_dataset('img_max', shape=(total_length, ), dtype=parameters[:, 1].dtype)
+                        img_mean = h5_spot.create_dataset('img_mean', shape=(total_length, ), dtype=parameters[:, 2].dtype)
+                        img_rec_sum = h5_spot.create_dataset('img_rec_sum', shape=(total_length, ), dtype=parameters[:, 3].dtype)
+                        img_rec_max = h5_spot.create_dataset('img_rec_max', shape=(total_length, ), dtype=parameters[:, 4].dtype)
+                        img_rec_mean = h5_spot.create_dataset('img_rec_mean', shape=(total_length, ), dtype=parameters[:, 5].dtype)
+                        height = h5_spot.create_dataset('height', shape=(total_length, ), dtype=parameters[:, 6].dtype)
+                        x = h5_spot.create_dataset('x', shape=(total_length, ), dtype=parameters[:, 7].dtype)
+                        y = h5_spot.create_dataset('y', shape=(total_length, ), dtype=parameters[:, 8].dtype)
+                        width_x = h5_spot.create_dataset('width_x', shape=(total_length, ), dtype=parameters[:, 9].dtype)
+                        width_y = h5_spot.create_dataset('width_y', shape=(total_length, ), dtype=parameters[:, 10].dtype)
+                        
+                        for i in range(0, total_length, process_chunk_size):
+                            i_end = np.min((total_length, i+process_chunk_size))
+                            print(f'    {i} - {i_end} ...')
+                            chunk = self.spot_ds.growth_dataset(growth, index=list(range(i,i_end)))
+                            
+                            inputs = self.normalize_and_crop_inputs(chunk, spot)
+                            results = self.fit_batch(inputs, num_workers)
 
-                    img_all = np.array([res[0] for res in results])
-                    img_rec_all = np.array([res[1] for res in results])
-                    parameters = np.array([res[2] for res in results])
+                            img_all = np.array([res[0] for res in results])
+                            img_rec_all = np.array([res[1] for res in results])
+                            parameters = np.array([res[2] for res in results])
+                            
+                            raw_image[i:i_end] = img_all[:]
+                            reconstructed_image[i:i_end] = img_rec_all[:]
+                            img_sum[i:i_end] = parameters[:, 0]
+                            img_max[i:i_end] = parameters[:, 1]
+                            img_mean[i:i_end] = parameters[:, 2]
+                            img_rec_sum[i:i_end] = parameters[:, 3]
+                            img_rec_max[i:i_end] = parameters[:, 4]
+                            img_rec_mean[i:i_end] = parameters[:, 5]
+                            height[i:i_end] = parameters[:, 6]
+                            x[i:i_end] = parameters[:, 7]
+                            y[i:i_end] = parameters[:, 8]
+                            width_x[i:i_end] = parameters[:, 9]
+                            width_y[i:i_end] = parameters[:, 10]
+                            
+                    else:
+                        print(f'    {0} - {total_length} ...')
+                        inputs = self.normalize_and_crop_inputs(self.spot_ds.growth_dataset(growth), spot)
+                        results = self.fit_batch(inputs, num_workers)
 
-                    h5_spot = h5_growth.create_group(spot)
-                    h5_spot.create_dataset('raw_image', data=img_all)
-                    h5_spot.create_dataset('reconstructed_image', data=img_rec_all)
-                    h5_spot.create_dataset('img_sum', data=parameters[:, 0])
-                    h5_spot.create_dataset('img_max', data=parameters[:, 1])
-                    h5_spot.create_dataset('img_mean', data=parameters[:, 2])
-                    h5_spot.create_dataset('img_rec_sum', data=parameters[:, 3])
-                    h5_spot.create_dataset('img_rec_max', data=parameters[:, 4])
-                    h5_spot.create_dataset('img_rec_mean', data=parameters[:, 5])
-                    h5_spot.create_dataset('height', data=parameters[:, 6])
-                    h5_spot.create_dataset('x', data=parameters[:, 7])
-                    h5_spot.create_dataset('y', data=parameters[:, 8])
-                    h5_spot.create_dataset('width_x', data=parameters[:, 9])
-                    h5_spot.create_dataset('width_y', data=parameters[:, 10])
+                        img_all = np.array([res[0] for res in results])
+                        img_rec_all = np.array([res[1] for res in results])
+                        parameters = np.array([res[2] for res in results])
 
-    def normalize_inputs(self, data, spot):
+                        h5_spot = h5_growth.create_group(spot)
+                        h5_spot.create_dataset('raw_image', data=img_all)
+                        h5_spot.create_dataset('reconstructed_image', data=img_rec_all)
+                        h5_spot.create_dataset('img_sum', data=parameters[:, 0])
+                        h5_spot.create_dataset('img_max', data=parameters[:, 1])
+                        h5_spot.create_dataset('img_mean', data=parameters[:, 2])
+                        h5_spot.create_dataset('img_rec_sum', data=parameters[:, 3])
+                        h5_spot.create_dataset('img_rec_max', data=parameters[:, 4])
+                        h5_spot.create_dataset('img_rec_mean', data=parameters[:, 5])
+                        h5_spot.create_dataset('height', data=parameters[:, 6])
+                        h5_spot.create_dataset('x', data=parameters[:, 7])
+                        h5_spot.create_dataset('y', data=parameters[:, 8])
+                        h5_spot.create_dataset('width_x', data=parameters[:, 9])
+                        h5_spot.create_dataset('width_y', data=parameters[:, 10])
+
+    def normalize_and_crop_inputs(self, data, spot):
         """
         Normalizes the input data for a specific spot.
 
@@ -393,10 +480,10 @@ class RHEED_image_processer:
         """
         crop = self.crop_dict[spot]
         if len(data.shape) == 2:
-            inputs = NormalizeData(data[crop[0]:crop[1], crop[2]:crop[3]])
+            inputs = NormalizeData(data[crop['y_start']:crop['y_end'], crop['x_start']:crop['x_end']])
         elif len(data.shape) == 3:
             inputs = NormalizeData(
-                np.array(data[:, crop[0]:crop[1], crop[2]:crop[3]]))
+                np.array(data[:, crop['y_start']:crop['y_end'], crop['x_start']:crop['x_end']]))
         return inputs
 
     def fit_batch(self, inputs, num_workers):
@@ -437,7 +524,7 @@ class RHEED_image_processer:
                       img_rec_sum, img_rec_max, img_rec_mean, *para]
         return img, img_rec, parameters
 
-    def visualize(self, growth, spot, frame, **kwargs):
+    def visualize(self, growth, spot, frame, figsize=(1.25*3, 1.25*1), **kwargs):
         """
         Visualizes the RHEED image processing results for a specific growth, spot, and frame.
 
@@ -452,13 +539,13 @@ class RHEED_image_processer:
 
         """
         img = self.spot_ds.growth_dataset(growth, frame)
-        img = self.normalize_inputs(img, spot)
+        img = self.normalize_and_crop_inputs(img, spot)
         img, img_rec, parameters = self.fit(img)
 
         sample_list = [img, img_rec, img_rec-img]
         clim = (img.min(), img.max())
 
-        fig, axes = layout_fig(3, 3, figsize=(1.25*3, 1.25*1))
+        fig, axes = layout_fig(3, 3, figsize=figsize)
         for i, ax in enumerate(axes):
             if ax == axes[-1]:
                 imagemap(ax, sample_list[i], divider_=False, clim=clim, colorbars=True, **kwargs)

@@ -49,7 +49,7 @@ def plot_xrd(ax, files, labels, title=None, xrange=(0,90), diff=1e3, pad_sequenc
             Y = Y * diff**(len(Ys)-i-1)
         ax.plot(X, Y, label=labels[i])
         
-    ax.set_xlabel(r"2$\Theta}$", )
+    ax.set_xlabel(r"2$\Theta$")
     ax.set_ylabel('Intensity [a.u.]')
     ax.legend()
 

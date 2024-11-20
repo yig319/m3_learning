@@ -1,10 +1,95 @@
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FormatStrFormatter
+import matplotlib.ticker as ticker
 import numpy as np
 import pylab as pl
 import seaborn as sns
 from scipy.signal import savgol_filter
 from m3_learning.viz.layout import layout_fig, labelfigs
 
+def trim_axes(axs, N):
+    """
+    Reduce *axs* to *N* Axes. All further Axes are removed from the figure.
+    """
+    axs = axs.flat
+    for ax in axs[N:]:
+        ax.remove()
+    return axs[:N]
+
+def show_images(images, labels=None, img_per_row=10, img_height=1, show_colorbar=False, 
+                clim=3, scale_0_1=False, hist_bins=None, show_axis=False):
+    
+    '''
+    Plots multiple images in grid.
+    
+    images
+    labels: labels for every images;
+    img_per_row: number of images to show per row;
+    img_height: height of image in axes;
+    show_colorbar: show colorbar;
+    clim: int or list of int, value of standard deviation of colorbar range;
+    scale_0_1: scale image to 0~1;
+    hist_bins: number of bins for histogram;
+    show_axis: show axis
+    '''
+    
+    assert type(images) == list or type(images) == np.ndarray, "do not use torch.tensor for hist"
+    if type(clim) == list:
+        assert len(images) == len(clim), "length of clims is not matched with number of images"
+
+    def scale(x):
+        if x.min() < 0:
+            return (x - x.min()) / (x.max() - x.min())
+        else:
+            return x/(x.max() - x.min())
+    
+    h = images[0].shape[1] // images[0].shape[0]*img_height + 1
+    if not labels:
+        labels = range(len(images))
+        
+    n = 1
+    if hist_bins: n +=1
+        
+    fig, axes = plt.subplots(n*len(images)//img_per_row+1*int(len(images)%img_per_row>0), img_per_row, 
+                             figsize=(16, n*h*len(images)//img_per_row+1))
+    trim_axes(axes, len(images))
+
+    for i, img in enumerate(images):
+        
+#         if torch.is_tensor(x_tensor):
+#             if img.requires_grad: img = img.detach()
+#             img = img.numpy()
+            
+        if scale_0_1: img = scale(img)
+        
+        if len(images) <= img_per_row and not hist_bins:
+            index = i%img_per_row
+        else:
+            index = (i//img_per_row)*n, i%img_per_row
+
+        axes[index].title.set_text(labels[i])
+        im = axes[index].imshow(img)
+        if show_colorbar:
+            m, s = np.mean(img), np.std(img) 
+            if type(clim) == list:
+                im.set_clim(m-clim[i]*s, m+clim[i]*s) 
+            else:
+                im.set_clim(m-clim*s, m+clim*s) 
+
+            fig.colorbar(im, ax=axes[index])
+            
+        if show_axis:
+            axes[index].tick_params(axis="x",direction="in", top=True)
+            axes[index].tick_params(axis="y",direction="in", right=True)
+        else:
+            axes[index].axis('off')
+
+        if hist_bins:
+            index_hist = (i//img_per_row)*n+1, i%img_per_row
+            h = axes[index_hist].hist(img.flatten(), bins=hist_bins)
+        
+    plt.show()
+    
 
 class Viz:
     def __init__(self, printing = None):
@@ -139,7 +224,8 @@ class Viz:
 
     @staticmethod
     def set_labels(ax, xlabel=None, ylabel=None, title=None, xlim=None, ylim=None, yaxis_style='sci', 
-                logscale=False, legend=None, ticks_both_sides=True):
+                   label_fontsize=12, title_fontsize=12, ticklabel_fontsize=10, scientific_notation_fontsize=8,
+                   logscale=False, legend=None, ticks_both_sides=True):
         """
         Set labels and other properties of the given axes.
 
@@ -158,21 +244,30 @@ class Viz:
         Returns:
             None
         """
-        if type(xlabel) != type(None): ax.set_xlabel(xlabel)
-        if type(ylabel) != type(None): ax.set_ylabel(ylabel)
-        if type(title) != type(None): ax.set_title(title)
+        if type(xlabel) != type(None): ax.set_xlabel(xlabel, fontsize=label_fontsize)
+        if type(ylabel) != type(None): ax.set_ylabel(ylabel, fontsize=label_fontsize)
+        if type(title) != type(None): ax.set_title(title, fontsize=title_fontsize)
         if type(xlim) != type(None): ax.set_xlim(xlim)
         if type(ylim) != type(None): ax.set_ylim(ylim)
+        
         if yaxis_style == 'sci':
-            ax.ticklabel_format(axis='y', style='sci', scilimits=(0,0), useLocale=False)    
+            formatter = ticker.ScalarFormatter(useMathText=True)
+            formatter.set_powerlimits((0, 0))  # Force scientific notation
+            ax.yaxis.set_major_formatter(formatter)
+            ax.yaxis.get_offset_text().set_fontsize(scientific_notation_fontsize)  # Adjust font size for the magnitude label
+
+        elif yaxis_style == 'float':
+            ax.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
+            # ax.ticklabel_format(axis='y', style='plain')   
+
         if logscale: ax.set_yscale("log") 
         if legend: ax.legend(legend)
-        ax.tick_params(axis="x",direction="in")
-        ax.tick_params(axis="y",direction="in")
+        ax.tick_params(axis="x", direction="in", length=5, labelsize=ticklabel_fontsize)
+        ax.tick_params(axis="y", direction="in", length=5, labelsize=ticklabel_fontsize)
         if ticks_both_sides:
             ax.yaxis.set_ticks_position('both')
             ax.xaxis.set_ticks_position('both')
-
+            
     @staticmethod
     def plot_image_with_colorbar(fig, ax, image, style='3_values'):
         """
@@ -188,8 +283,8 @@ class Viz:
             None
         """        
         im = ax.imshow(image, vmin=image.min(), vmax=image.max())
-        cbar = plt.colorbar(im, ticks=[image.min(), image.max(), image.mean()])
-        cbar.ax.set_yticklabels([image.min(), image.max(), image.mean()])
+        cbar = plt.colorbar(im, ticks=[image.min(), image.max(), (image.min()+image.max())/2])
+        cbar.ax.set_yticklabels([image.min(), image.max(), (image.min()+image.max())/2])
 
     @staticmethod
     def label_curves(ax, curve_x, curve_y, labels_dict):
@@ -287,7 +382,7 @@ class Viz:
     #                          figsize=(16, subplot_height*len(ys)//img_per_row+1))  
     # def show_grid_plots(xs, ys, labels=None, ys_fit1=None, ys_fit2=None, img_per_row=4, subplot_height=3, ylim=None, legend=None):
     @staticmethod
-    def show_grid_plots(axes, xs, ys, labels=None, xlabel=None, ylabel=None, ylim=None, legend=None, color=None):
+    def show_grid_plots(axes, xs, ys, ys_2=None, labels=None, xlabel=None, ylabel=None, title=None, ylim=None, legend=None, color=None):
         """
         Show a grid of plots.
 
@@ -310,10 +405,18 @@ class Viz:
         for i in range(len(ys)):
             # i = Viz.set_index(axes, i, total_length=len(ys))
             axes[i].plot(xs[i], ys[i], marker='.', markersize=2, color=color)
+
+            if not isinstance(ys_2, type(None)):
+             axes[i].plot(xs[i], ys_2[i], marker='+', markersize=2)
+
             Viz.set_labels(axes[i], xlabel=xlabel, ylabel=ylabel, ylim=ylim, legend=legend)
-        if not isinstance(labels, type(None)):
-            labelfigs(axes[i], 1, string_add=labels[i], loc='bm', size=6)
-        # plt.show()
+
+        if isinstance(labels, type(None)):
+            labelfigs(axes[i], i, loc='cb', size=6)
+        else:
+            labelfigs(axes[i], i, string_add=str(labels[i]), loc='cb', size=6)
+        if title: plt.suptitle(title)
+        plt.show()
         
     @staticmethod
     def plot_loss_difference(ax1, x_all, y_all, x_coor_all, loss_diff, color_array, color_2, title=None):
@@ -350,7 +453,7 @@ class Viz:
 
 
     @staticmethod
-    def plot_fit_details(x, y1, y2, y3, index_list, save_name=None, printing=None):
+    def plot_fit_details(x, y1, y2, y3, labels, figsize=None, mod=6, style='print', logscale=False, layout='compressed', save_name=None, printing=None):
         """
         Plot the fit details.
 
@@ -359,16 +462,19 @@ class Viz:
             y1: Y-axis values for raw data.
             y2: Y-axis values for prediction.
             y3: Y-axis values for failed data.
-            index_list: List of index values.
+            labels: labels.
+            figsize (tuple, optional): Figure size. Defaults to None.
+            style (str, optional): Style of the plot ('print' or 'presentation'). Defaults to 'print'.
             save_name (str, optional): Name to save the plot. Defaults to None.
             printing: Printing object.
 
         Returns:
             None
         """
-        
-        mod = 6
-        if len(y1)//mod > 10:
+        if labels is None:
+            labels = range(len(y1))
+            
+        if len(y1)//mod > 10 and style == 'print':
             n_page = len(y1) // mod // 10 + 1
             for np in range(n_page):
                 start_plot = np*10*mod
@@ -377,7 +483,10 @@ class Viz:
                 else:
                     n_plot = 10*mod
 
-                fig, axes = layout_fig(n_plot, mod=mod, figsize=(6, 1*(n_plot//mod+1)))
+                if figsize == None:
+                    figsize=(6, 1*(n_plot//mod+1))
+                    
+                fig, axes = layout_fig(n_plot, mod=mod, figsize=figsize, layout='compressed')
                 axes = axes.flatten()[:n_plot]
                 for i in range(start_plot, start_plot+n_plot):
                     if np == n_page-1 and i == start_plot+n_plot-1:                    
@@ -390,17 +499,18 @@ class Viz:
                     else:
                         xlabel, ylabel = None, None
                         l1 = axes[i%(10*mod)].plot(x[i], y1[i], marker='.', markersize=2, 
-                                        color=(44/255,123/255,182/255, 0.5), label='Raw data')
+                                        color=(44/255,123/255,1102/255, 0.5), label='Raw data')
                         l2 = axes[i%(10*mod)].plot(x[i], y2[i], linewidth=2, label='Prediction')
-                        l3 = axes[i%(10*mod)].plot(x[i], y3[i], linewidth=1, label='Failed')
+                        if not isinstance(y3, type(None)):
+                            l3 = axes[i%(10*mod)].plot(x[i], y3[i], linewidth=1, label='Failed')
 
                         if (i%(10*mod)+1) % mod == 1: ylabel = 'Intensity (a.u.)'
                         if np == n_page-1 and i%(10*mod)+1 >= len(axes)-mod: xlabel = 'Time (s)'
 
-                        Viz.set_labels(axes[i%(10*mod)], xlabel=xlabel, ylabel=ylabel)
+                        Viz.set_labels(axes[i%(10*mod)], xlabel=xlabel, ylabel=ylabel, logscale=logscale)
 
-                        labelfigs(axes[i%(10*mod)], None, string_add=str(index_list[i]), loc='ct', size=8, style='b')
-                        # labelfigs(axes[i%(10*mod)], None, string_add=str(index_list[i]), loc='ct', style='b')
+                        labelfigs(axes[i%(10*mod)], None, string_add=str(labels[i]), loc='ct', size=10, style='b')
+                        # labelfigs(axes[i%(10*mod)], None, string_add=str(labels[i]), loc='ct', style='b')
                         axes[i%(10*mod)].set_xticks([])
                         axes[i%(10*mod)].set_yticks([])
                         axes[i%(10*mod)].xaxis.set_tick_params(labelbottom=False)
@@ -411,32 +521,37 @@ class Viz:
                     printing.savefig(fig, save_name+'-'+str(np+1))
                 plt.show()
         else:
-            fig, axes = layout_fig(len(y1)+1, mod=mod, figsize=(6, 1*len(y1)//mod))
+            if figsize == None:
+                n_plot = len(y1)
+                figsize=(6, 1*(n_plot//mod+1))
+                    
+            fig, axes = layout_fig(len(y1)+1, mod=mod, figsize=figsize, layout='compressed')
             axes = axes.flatten()[:len(y1)+1]
             for i in range(len(x)):
                 xlabel='Time (s)'
                 ylabel='Intensity (a.u.)'
 
                 l1 = axes[i].plot(x[i], y1[i], marker='.', markersize=2, 
-                                color=(44/255,123/255,182/255, 0.5), label='Raw data')
+                                color=(44/255,123/255,1102/255, 0.5), label='Raw data')
                 l2 = axes[i].plot(x[i], y2[i], linewidth=2, label='Prediction')
-                l3 = axes[i].plot(x[i], y3[i], linewidth=1, label='Failed')
+                if not isinstance(y3, type(None)):
+                    l3 = axes[i].plot(x[i], y3[i], linewidth=1, label='Failed')
                 if i+1 < len(axes)-mod: xlabel = None
                 if not (i+1) % mod == 1: ylabel = None
-                Viz.set_labels(axes[i], xlabel=xlabel, ylabel=ylabel)
-                labelfigs(axes[i], None, string_add=str(index_list[i]), loc='ct', size=8, style='b')
-                axes[i].set_xticks([])
-                axes[i].set_yticks([])
-                axes[i].xaxis.set_tick_params(labelbottom=False)
-                axes[i].yaxis.set_tick_params(labelleft=False)
+                Viz.set_labels(axes[i], xlabel=xlabel, ylabel=ylabel, logscale=logscale, yaxis_style='float')
+                labelfigs(axes[i], None, string_add=str(labels[i]), loc='ct', size=10, style='b')
+                # axes[i].set_xticks([])
+                # axes[i].set_yticks([])
+                # axes[i].xaxis.set_tick_params(labelbottom=False)
+                # axes[i].yaxis.set_tick_params(labelleft=False)
 
             handles, labels = axes[-2].get_legend_handles_labels()
             axes[-1].legend(handles=handles, labels=labels, loc='center')
             axes[-1].set_xticks([])
             axes[-1].set_yticks([])
             axes[-1].set_frame_on(False)
-
-            plt.tight_layout(pad=-0.5, w_pad=-1, h_pad=-0.5)
+            
+            # plt.tight_layout(pad=-0.5, w_pad=-1, h_pad=-0.5)
             if save_name:
                 printing.savefig(fig, save_name)
             plt.show()
@@ -467,8 +582,11 @@ class Viz:
                 text.append("n: "+str(len(d)))
             
             if label_type == 'average':
+                text.append(str(round(np.mean(d), 4)))
+                
+            if label_type == 'median':
                 text.append(str(round(np.median(d), 4)))
-
+                
         for tick, label in zip(xloc, ax.get_xticklabels()):
             if text_pos == 'center':
                 ax.text(xloc[tick], yloc[tick]*1.1, text[tick], horizontalalignment='center', size=14, weight='semibold')
