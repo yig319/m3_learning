@@ -6,6 +6,7 @@ import seaborn as sns
 from m3_learning.viz.layout import layout_fig, labelfigs
 from m3_learning.RHEED.Viz import Viz
 from m3_learning.RHEED.Analysis import analyze_curves, remove_outlier, smooth
+from m3_learning.RHEED.Fit import NormalizeData
 
 def decay_curve_examples(df_para, spot, metric, fit_settings, savefig=False, savepath=None):
     """
@@ -42,7 +43,7 @@ def decay_curve_examples(df_para, spot, metric, fit_settings, savefig=False, sav
         
 
 
-def compare_loss_difference():
+def compare_loss_difference(align_time=False, normalize=False):
     """
     Compare the difference in losses between two samples.
 
@@ -66,9 +67,29 @@ def compare_loss_difference():
     losses_all_sample3 = np.load('./Data/Plume_results/untreated_162nm-losses_all.npy')
     loss_diff_sample3 = np.abs(losses_all_sample3[:,0] - losses_all_sample3[:,1])
 
-
+    if align_time:
+        y_all_sample1 = y_all_sample1[x_all_sample1<110]
+        x_all_sample1 = x_all_sample1[x_all_sample1<110]
+        loss_diff_sample1 = loss_diff_sample1[color_array_sample1[:, 0]<110]
+        color_array_sample1 = color_array_sample1[color_array_sample1[:, 0]<110]
+    
+        y_all_sample2 = y_all_sample2[x_all_sample2<110]
+        x_all_sample2 = x_all_sample2[x_all_sample2<110]
+        loss_diff_sample2 = loss_diff_sample2[color_array_sample2[:, 0]<110]
+        color_array_sample2 = color_array_sample2[color_array_sample2[:, 0]<110]
+        
+        y_all_sample3 = y_all_sample3[x_all_sample3<110]
+        x_all_sample3 = x_all_sample3[x_all_sample3<110]
+        loss_diff_sample3 = loss_diff_sample3[color_array_sample3[:, 0]<110]
+        color_array_sample3 = color_array_sample3[color_array_sample3[:, 0]<110]
+    
+    if normalize:
+        y_all_sample1 = NormalizeData(y_all_sample1, lb=np.min(y_all_sample1), ub=np.max(y_all_sample1))
+        y_all_sample2 = NormalizeData(y_all_sample2, lb=np.min(y_all_sample2), ub=np.max(y_all_sample2))
+        y_all_sample3 = NormalizeData(y_all_sample3, lb=np.min(y_all_sample3), ub=np.max(y_all_sample3))
+    
     seq_colors = ['#00429d','#2e59a8','#4771b2','#5d8abd','#73a2c6','#8abccf','#a5d5d8','#c5eddf','#ffffe0']
-    fig, axes = layout_fig(3, 1, figsize=(5, 1.5*3))
+    fig, axes = layout_fig(3, 1, figsize=(6, 2*3))
     Viz.plot_loss_difference(axes[0], x_all_sample1, y_all_sample1, color_array_sample1[:,0], loss_diff_sample1, 
                             color_array_sample1, color_2=seq_colors[0], title='treated_213nm')
     Viz.plot_loss_difference(axes[1], x_all_sample2, y_all_sample2, color_array_sample2[:,0], loss_diff_sample2, 
@@ -78,7 +99,7 @@ def compare_loss_difference():
     plt.show()
 
 
-def compare_growth_mechanism(align_time=False):
+def compare_growth_mechanism(align_time=False, normalize=False):
     """
     Compare the growth mechanism of different samples.
 
@@ -120,21 +141,26 @@ def compare_growth_mechanism(align_time=False):
         color_array_sample3 = color_array_sample3[color_array_sample3[:, 0]<110]
         boxes_sample3 = boxes_sample3[boxes_sample3[:,0]<110]
     
+    if normalize:
+        y_all_sample1 = NormalizeData(y_all_sample1, lb=np.min(y_all_sample1), ub=np.max(y_all_sample1))
+        y_all_sample2 = NormalizeData(y_all_sample2, lb=np.min(y_all_sample2), ub=np.max(y_all_sample2))
+        y_all_sample3 = NormalizeData(y_all_sample3, lb=np.min(y_all_sample3), ub=np.max(y_all_sample3))
+    
     fig, axes = layout_fig(3, 1, figsize=(6, 2*3))
     Viz.draw_background_colors(axes[0], color_array_sample1)
     Viz.draw_boxes(axes[0], boxes_sample1, color_gray)
     axes[0].scatter(x_all_sample1, y_all_sample1, color='k', s=1)
-    Viz.set_labels(axes[0], xlabel='Time (s)', ylabel='Intensity (a.u.)', title='treated_213nm')
+    Viz.set_labels(axes[0], xlabel='Time (s)', ylabel='Intensity (a.u.)', ylim=(-0.1, 1.1), title='treated_213nm')
 
     Viz.draw_background_colors(axes[1], color_array_sample2)
     Viz.draw_boxes(axes[1], boxes_sample2, color_gray)
     axes[1].scatter(x_all_sample2, y_all_sample2, color='k', s=1)
-    Viz.set_labels(axes[1], xlabel='Time (s)', ylabel='Intensity (a.u.)', title='treated_81nm')
+    Viz.set_labels(axes[1], xlabel='Time (s)', ylabel='Intensity (a.u.)', ylim=(-0.1, 1.1), title='treated_81nm')
 
     Viz.draw_background_colors(axes[2], color_array_sample3)
     Viz.draw_boxes(axes[2], boxes_sample3, color_gray)
     axes[2].scatter(x_all_sample3, y_all_sample3, color='k', s=1)
-    Viz.set_labels(axes[2], xlabel='Time (s)', ylabel='Intensity (a.u.)', title='untreated_162nm')
+    Viz.set_labels(axes[2], xlabel='Time (s)', ylabel='Intensity (a.u.)', ylim=(-0.1, 1.1), title='untreated_162nm')
     plt.show()
 
 

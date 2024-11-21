@@ -257,7 +257,7 @@ class Viz:
             ax.yaxis.get_offset_text().set_fontsize(scientific_notation_fontsize)  # Adjust font size for the magnitude label
 
         elif yaxis_style == 'float':
-            ax.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
+            ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
             # ax.ticklabel_format(axis='y', style='plain')   
 
         if logscale: ax.set_yscale("log") 

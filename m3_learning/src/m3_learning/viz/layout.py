@@ -175,10 +175,13 @@ def layout_fig(graph, mod=None, figsize=None, layout='compressed', **kwargs):
     )
 
     # deletes extra unneeded axes
-    axes = axes.reshape(-1)
-    for i in range(axes.shape[0]):
-        if i + 1 > graph:
-            fig.delaxes(axes[i])
+    if graph == 1:
+        return fig, axes
+    else:
+        axes = axes.reshape(-1) 
+        for i in range(axes.shape[0]):
+            if i + 1 > graph:
+                fig.delaxes(axes[i])
 
     return fig, axes[:graph]
 
